@@ -1,0 +1,2066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage Plot — set design previz</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&display=swap');
+  html, body { margin:0; padding:0; background:#000; overflow:hidden; }
+  canvas { display:block; }
+  #panel {
+    position:fixed; left:0; top:0; bottom:0; width:280px;
+    background:rgba(0,0,0,0.88); border-right:1px solid rgba(255,255,255,0.14);
+    font-family:'DM Mono', monospace; color:#ddd; font-size:11px;
+    padding:16px 14px 46px 14px; overflow-y:auto; z-index:10; display:none;
+    backdrop-filter: blur(4px); box-sizing:border-box;
+  }
+  #panel::-webkit-scrollbar { width:6px; }
+  #panel::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.15); }
+  #panel h1 { font-size:12px; font-weight:500; letter-spacing:0.22em; margin:0 0 4px 0; color:#fff; }
+  #panel .sub { color:#777; margin-bottom:14px; letter-spacing:0.06em; }
+  #panel h2 { font-size:10px; font-weight:400; letter-spacing:0.2em; color:#888;
+    margin:18px 0 8px 0; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:4px; }
+  #panel h3 { font-size:9px; font-weight:400; letter-spacing:0.18em; color:#666;
+    margin:10px 0 4px 0; }
+  .row { display:flex; align-items:center; justify-content:space-between; margin:6px 0; gap:8px; }
+  .row label { color:#aaa; flex:0 0 auto; }
+  .row .val { color:#666; min-width:34px; text-align:right; }
+  input[type=range] { flex:1; accent-color:#fff; background:transparent; height:14px; }
+  input[type=color] { width:36px; height:20px; background:transparent;
+    border:1px solid rgba(255,255,255,0.25); padding:1px; cursor:pointer; }
+  input[type=text] { background:transparent; border:1px solid rgba(255,255,255,0.22);
+    color:#eee; font-family:'DM Mono',monospace; font-size:11px; padding:4px 7px; width:100%;
+    box-sizing:border-box; }
+  select { background:#000; border:1px solid rgba(255,255,255,0.25); color:#eee;
+    font-family:'DM Mono',monospace; font-size:11px; padding:3px 4px; max-width:132px; }
+  button { background:transparent; border:1px solid rgba(255,255,255,0.3); color:#ddd;
+    font-family:'DM Mono',monospace; font-size:11px; padding:4px 9px; cursor:pointer;
+    letter-spacing:0.05em; transition:all 0.15s; }
+  button:hover { background:rgba(255,255,255,0.12); color:#fff; }
+  button.danger { border-color:rgba(255,80,80,0.5); color:#e88; }
+  button.danger:hover { background:rgba(255,60,60,0.15); }
+  button.mode.active { background:rgba(255,255,255,0.18); color:#fff;
+    border-color:rgba(255,255,255,0.6); }
+  button.wide { width:100%; }
+  .itemrow { display:flex; align-items:center; gap:7px; padding:4px 6px; margin:2px 0;
+    cursor:pointer; border:1px solid transparent; }
+  .itemrow:hover { background:rgba(255,255,255,0.06); }
+  .itemrow.sel { border-color:rgba(255,255,255,0.35); background:rgba(255,255,255,0.05); }
+  .itemrow.multi { border-color:rgba(160,200,255,0.4); }
+  .itemrow .nm { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .itemrow .typ { color:#666; font-size:9px; letter-spacing:0.1em; }
+  .itemrow input[type=color] { width:22px; height:16px; flex:0 0 auto; }
+  .btnrow { display:flex; gap:6px; flex-wrap:wrap; margin:8px 0; }
+  .modegrid { display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:6px 0; }
+  .modegrid button { font-size:10px; padding:5px 4px; text-align:left;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .catgrid { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:6px 0; }
+  .catgrid button { font-size:9.5px; padding:4px 3px; text-align:left;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #detail { border:1px solid rgba(255,255,255,0.12); padding:8px; margin-top:8px; }
+  .hint { color:#555; font-size:10px; line-height:1.6; margin-top:6px; }
+
+  #aboutBtn { position:fixed; top:14px; right:16px; z-index:15;
+    width:30px; height:30px; border-radius:50%; padding:0;
+    border:1px solid rgba(255,255,255,0.4); color:#ddd; background:rgba(0,0,0,0.6);
+    font-family:'DM Mono',monospace; font-size:14px; }
+  #aboutBtn:hover { background:rgba(255,255,255,0.15); }
+  #aboutPop { display:none; position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%); width:min(480px, 86vw); max-height:76vh;
+    overflow-y:auto; background:#000; border:1px solid rgba(255,255,255,0.3);
+    z-index:20; padding:22px; font-family:'DM Mono',monospace; color:#ddd;
+    font-size:11.5px; line-height:1.75; box-shadow:0 0 60px rgba(0,0,0,0.9); }
+  #aboutPop h3 { margin:0 0 12px 0; font-size:12px; letter-spacing:0.2em;
+    font-weight:500; color:#fff; }
+  #aboutPop .txt { white-space:pre-wrap; }
+  #aboutPop .btnrow { margin-top:14px; }
+  #canvasBtns { position:fixed; right:14px; bottom:64px; z-index:12;
+    display:flex; flex-direction:column; gap:6px; align-items:flex-end; }
+  #canvasBtns button { background:rgba(0,0,0,0.6); }
+  #footerCredit { position:fixed; bottom:8px; right:14px; z-index:12;
+    font-family:'DM Mono',monospace; font-size:10px; color:rgba(255,255,255,0.45);
+    letter-spacing:0.08em; }
+  #footerCredit a, #aboutPop a { color:inherit; text-decoration:underline;
+    text-decoration-color:rgba(255,255,255,0.3); text-underline-offset:2px; }
+  #footerCredit a:hover, #aboutPop a:hover { color:#fff; }
+  #logo { position:fixed; top:16px; left:16px; z-index:15;
+    font-family:'DM Mono', monospace; font-size:13px; letter-spacing:0.18em;
+    color:#fff; pointer-events:none; user-select:none; }
+  #logo span { color:#777; }
+
+  #floatBar { position:fixed; display:none; z-index:14;
+    background:rgba(0,0,0,0.85); border:1px solid rgba(255,255,255,0.3);
+    padding:5px 7px; gap:6px; align-items:center;
+    font-family:'DM Mono',monospace; backdrop-filter:blur(4px); }
+  #floatBar.show { display:flex; }
+  #floatBar button { font-size:9.5px; padding:3px 7px; }
+  #floatBar input[type=color] { width:24px; height:18px; }
+
+  @media (max-width: 640px) {
+    #panel { width:min(280px, 86vw); padding:14px 12px 42px 12px; }
+    #logo { font-size:11px; top:12px; left:12px; letter-spacing:0.14em; }
+    #aboutBtn { top:12px; right:12px; width:26px; height:26px; font-size:12px; }
+    #canvasBtns { right:10px; bottom:56px; gap:5px; }
+    #canvasBtns button { font-size:9px; padding:5px 8px; }
+    #footerCredit { font-size:8px; right:10px; bottom:6px; }
+    #floatBar { padding:4px 5px; gap:4px; }
+    #floatBar button { font-size:8.5px; padding:3px 5px; }
+  }
+</style>
+</head>
+<body>
+<div id="logo">STAGE<span>PLOT</span></div>
+<div id="floatBar"></div>
+<div id="panel"></div>
+<button id="aboutBtn" title="about / how to use">?</button>
+<div id="aboutPop"></div>
+<div id="canvasBtns">
+  <button id="settingsBtn" title="open settings (or press S)">settings</button>
+  <button id="exportBtn" title="export a PNG plot sheet: both views + property schedule">export image</button>
+  <button id="saveBtn" title="save this scene as a file">save scene</button>
+  <button id="loadBtn" title="load a saved scene file">load scene</button>
+</div>
+<input type="file" id="loadFile" accept=".json" style="display:none">
+<div id="footerCredit"></div>
+<script>
+/* =========================================================
+   STAGE PLOT v2 — set design previz
+   companion to Light Plot & Projection Plot, same structure
+
+   S: settings · T: top · F: front
+   click select · shift-click multi-select · drag to move
+   R rotates selection · delete removes selection
+   group / ungroup from the ON STAGE section
+
+   >>> TO EDIT THE ABOUT TEXT AND FOOTER CREDIT, change
+   >>> CONFIG.aboutText and CONFIG.footerText just below.
+   >>> They are intentionally not editable from the interface.
+   ========================================================= */
+
+// -------------------- CONFIG --------------------
+const CONFIG = {
+  stageWidth: 12,
+  stageDepth: 10,
+  perspective: 0.35,
+  pitchTop: 90,
+  pitchFront: 14,
+  showLabels: true,
+
+  footerText: '\u00A9 Gaurav Singh Nijjer 2026',
+
+  aboutText:
+`STAGE PLOT
+a previsualization sketchpad for stage and set design.
+companion to Light Plot and Projection Plot: a quick shared
+starting point before build day, not a CAD replacement.
+
+HOW TO USE
+\u2022 drag the empty canvas down for the audience view, up for the top view
+\u2022 open settings (S) and search the property catalog: chair, ladder,
+  platform, bridge, fountain, charpai, anything \u2014 click to place it
+\u2022 drag a piece to position it \u00B7 R rotates by 45\u00B0 \u00B7 delete removes it
+\u2022 selecting a piece shows a quick bar right on the canvas: line/fill,
+  color, and group/ungroup, no need to open the panel
+\u2022 shift-click pieces (on canvas or in the list) to multi-select,
+  then group them so they move, rotate and delete as one unit
+\u2022 every piece has line color, line/fill mode, uniform scale, separate
+  width and depth stretch, and elevation for placing things on platforms
+\u2022 drag the white figures to check human scale against the set
+\u2022 keys: T top \u00B7 F front
+
+A scene is one complete stage picture: every placed property with its
+position, rotation, scale, stretch, color, mode and grouping, plus the
+backdrop and the performers. Save a scene as a file, load it anytime.
+
+Dimensions are indicative and pieces are simplified silhouettes, this
+is just an indicative tool for design planning purposes. Check real
+measurements before building.
+
+Made for set designers, directors, production designers and anyone
+sketching a stage picture before walking into the workshop.
+
+\u00A9 Gaurav Singh Nijjer 2026`,
+
+  backdrop: {
+    on: true,
+    mode: 'gradient',   // off | wash | gradient
+    color: '#16233f',
+    h: 6
+  }
+};
+
+const DEFAULT_CONFIG = JSON.parse(JSON.stringify(CONFIG));
+
+// >>> credit hyperlink target, edit here if the site address changes
+const CREDIT_URL = 'https://gauravnijjer.com';
+const CREDIT_NAME = 'Gaurav Singh Nijjer';
+function escapeHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+function linkifyCredit(s) {
+  const link = '<a href="' + CREDIT_URL + '" target="_blank" rel="noopener noreferrer">' +
+    CREDIT_NAME + '</a>';
+  return escapeHtml(s).split(CREDIT_NAME).join(link);
+}
+
+// -------------------- PROPERTY CATALOG --------------------
+// Primitives in local meters, centred at origin, back toward +z (upstage).
+//   B(x,z,w,d,y0,y1)          box
+//   C(x,z,r,y0,y1)            cylinder (10-gon prism, vertical axis)
+//   L(x,z,y0,y1)              vertical line
+//   LN(ax,az,ay, bx,bz,by)    free line between two 3D points
+//   vcirc(cx,cz,cy,r,plane)   vertical circle from 8 line segments;
+//                             plane 'x' faces the audience, 'z' faces sideways
+const B  = (x,z,w,d,y0,y1) => ({t:'box',x,z,w,d,y0,y1});
+const C  = (x,z,r,y0,y1)   => ({t:'cyl',x,z,r,y0,y1});
+const L  = (x,z,y0,y1)     => ({t:'leg',x,z,y0,y1});
+const LN = (ax,az,ay,bx,bz,by) => ({t:'line',ax,az,ay,bx,bz,by});
+// uses Math directly because p5 constants aren't available at parse time
+function vcirc(cx, cz, cy, r, plane) {
+  const out = [], n = 8;
+  for (let i = 0; i < n; i++) {
+    const a0 = 2*Math.PI*i/n, a1 = 2*Math.PI*(i+1)/n;
+    const u0 = Math.cos(a0)*r, v0 = Math.sin(a0)*r;
+    const u1 = Math.cos(a1)*r, v1 = Math.sin(a1)*r;
+    if (plane === 'x')
+      out.push(LN(cx+u0, cz, cy+v0, cx+u1, cz, cy+v1));
+    else
+      out.push(LN(cx, cz+u0, cy+v0, cx, cz+u1, cy+v1));
+  }
+  return out;
+}
+
+function legs4(hw, hd, y1) {
+  return [L(-hw,-hd,0,y1), L(hw,-hd,0,y1), L(-hw,hd,0,y1), L(hw,hd,0,y1)];
+}
+function railing(x0, x1, z, y0, y1, posts) {
+  const out = [LN(x0,z,y1, x1,z,y1)];
+  for (let i = 0; i <= posts; i++) {
+    const x = x0 + (x1 - x0) * i / posts;
+    out.push(L(x, z, y0, y1));
+  }
+  return out;
+}
+function stairs(n, stepW, stepD, stepH) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push(B(0, -((n-1)/2)*stepD + i*stepD, stepW, stepD, 0, (i+1)*stepH));
+  }
+  return out;
+}
+
+const CATALOG = [];
+function K(name, cat, tags, geo) { CATALOG.push({ name, cat, tags, geo }); }
+
+// ---------- SEATING ----------
+K('chair','seating',['seat'],
+  [B(0,0,.45,.45,.42,.47), B(0,.19,.45,.07,.47,.92), ...legs4(.19,.19,.42)]);
+K('armchair','seating',['seat'],
+  [B(0,0,.7,.7,.18,.42), B(0,.28,.7,.14,.42,.85),
+   B(-.32,0,.12,.7,.42,.6), B(.32,0,.12,.7,.42,.6)]);
+K('folding chair','seating',['seat'],
+  [B(0,0,.42,.42,.44,.47), B(0,.18,.42,.05,.47,.85),
+   LN(-.19,-.19,0,-.19,.19,.44), LN(.19,-.19,0,.19,.19,.44),
+   LN(-.19,.19,0,-.19,-.19,.44), LN(.19,.19,0,.19,-.19,.44)]);
+K('rocking chair','seating',['seat'],
+  [B(0,0,.5,.45,.4,.45), B(0,.19,.5,.07,.45,1.0), ...legs4(.21,.18,.4),
+   LN(-.23,-.3,.02,-.23,.3,.02), LN(.23,-.3,.02,.23,.3,.02)]);
+K('office chair','seating',['seat','office'],
+  [C(0,0,.23,.44,.5), B(0,.2,.42,.06,.5,.95), L(0,0,.1,.44), C(0,0,.3,.05,.1)]);
+K('stool','seating',['seat'],
+  [C(0,0,.18,.42,.46), L(-.13,-.13,0,.42), L(.13,-.13,0,.42), L(0,.16,0,.42)]);
+K('bar stool','seating',['seat','tall'],
+  [C(0,0,.17,.72,.76), ...legs4(.13,.13,.72), LN(-.13,-.13,.25,.13,.13,.25)]);
+K('bench','seating',['seat'],
+  [B(0,0,1.4,.35,.42,.47), ...legs4(.6,.13,.42)]);
+K('park bench','seating',['seat','outdoor','exterior'],
+  [B(0,0,1.5,.4,.42,.47), B(0,.17,1.5,.06,.47,.85), ...legs4(.65,.15,.42)]);
+K('church pew','seating',['seat','church'],
+  [B(0,0,2.2,.4,.42,.47), B(0,.18,2.2,.06,.47,.95),
+   B(-1.05,0,.1,.4,0,.47), B(1.05,0,.1,.4,0,.47)]);
+K('sofa 2-seat','seating',['seat','couch'],
+  [B(0,0,1.4,.85,.15,.45), B(0,.33,1.4,.18,.45,.85),
+   B(-.62,0,.16,.85,.45,.62), B(.62,0,.16,.85,.45,.62)]);
+K('sofa 3-seat','seating',['seat','couch'],
+  [B(0,0,1.9,.85,.15,.45), B(0,.33,1.9,.18,.45,.85),
+   B(-.87,0,.16,.85,.45,.62), B(.87,0,.16,.85,.45,.62)]);
+K('l-shaped sofa','seating',['seat','couch'],
+  [B(-.3,0,1.8,.85,.15,.45), B(-.3,.33,1.8,.18,.45,.85),
+   B(.9,-.35,.75,1.55,.15,.45), B(1.2,-.35,.16,1.55,.45,.62)]);
+K('chaise longue','seating',['seat','couch'],
+  [B(0,0,1.7,.7,.15,.4), B(-.72,0,.26,.7,.4,.8)]);
+K('ottoman','seating',['seat'], [B(0,0,.6,.6,.15,.42)]);
+K('pouffe','seating',['seat'], [C(0,0,.3,0,.4)]);
+K('floor cushion','seating',['seat'], [B(0,0,.6,.6,0,.14)]);
+K('bolster','seating',['seat','indian'], [B(0,0,.7,.25,0,.25)]);
+K('floor mat seating','seating',['seat','indian','mat'], [B(0,0,1.6,1.0,0,.03)]);
+K('diwan','seating',['seat','indian','couch'],
+  [B(0,0,1.9,.8,.3,.45), ...legs4(.85,.32,.3), B(-.8,0,.2,.7,.45,.6), B(.8,0,.2,.7,.45,.6)]);
+K('charpai','seating',['seat','bed','indian','cot'],
+  [B(0,0,1.8,.9,.4,.45), ...legs4(.82,.38,.4),
+   LN(-.82,-.2,.42,.82,-.2,.42), LN(-.82,0,.42,.82,0,.42), LN(-.82,.2,.42,.82,.2,.42)]);
+K('throne','seating',['seat','royal','period'],
+  [B(0,0,.7,.6,.45,.52), B(0,.24,.7,.12,.52,1.5),
+   B(-.35,0,.1,.6,.52,.75), B(.35,0,.1,.6,.52,.75),
+   ...legs4(.28,.22,.45), B(0,0,.9,.8,0,.12)]);
+K('beanbag','seating',['seat'], [C(0,0,.4,0,.4)]);
+K('swing seat jhoola','seating',['seat','indian','swing'],
+  [B(0,0,1.2,.5,.5,.58), L(-.55,-.2,.58,2.4), L(.55,-.2,.58,2.4),
+   L(-.55,.2,.58,2.4), L(.55,.2,.58,2.4), LN(-.7,0,2.4,.7,0,2.4)]);
+K('deck chair','seating',['seat','outdoor'],
+  [LN(-.25,-.4,0,-.25,.45,.9), LN(.25,-.4,0,.25,.45,.9),
+   LN(-.25,.3,0,-.25,-.1,.5), LN(.25,.3,0,.25,-.1,.5),
+   B(0,.1,.5,.7,.35,.4)]);
+
+// ---------- TABLES ----------
+K('side table','tables',['table','small'],
+  [B(0,0,.5,.5,.55,.6), ...legs4(.21,.21,.55)]);
+K('coffee table','tables',['table','short','low'],
+  [B(0,0,1.0,.55,.38,.43), ...legs4(.43,.22,.38)]);
+K('dining table','tables',['table'],
+  [B(0,0,1.5,.9,.72,.76), ...legs4(.65,.37,.72)]);
+K('long banquet table','tables',['table','long'],
+  [B(0,0,2.8,.9,.72,.76), ...legs4(1.3,.37,.72), L(0,-.37,0,.72), L(0,.37,0,.72)]);
+K('round table','tables',['table'],
+  [C(0,0,.6,.72,.76), C(0,0,.08,0,.72), C(0,0,.3,0,.05)]);
+K('round cafe table','tables',['table','cafe','small'],
+  [C(0,0,.35,.72,.75), C(0,0,.05,0,.72), C(0,0,.22,0,.04)]);
+K('desk','tables',['table','office'],
+  [B(0,0,1.3,.65,.72,.76), B(-.45,0,.4,.65,0,.72), L(.6,-.28,0,.72), L(.6,.28,0,.72)]);
+K('writing desk','tables',['table','small','office'],
+  [B(0,0,.9,.5,.74,.78), ...legs4(.4,.2,.74)]);
+K('computer desk','tables',['table','office'],
+  [B(0,0,1.2,.6,.72,.76), ...legs4(.55,.25,.72), B(0,.15,.5,.05,.76,1.1)]);
+K('console table','tables',['table','narrow'],
+  [B(0,0,1.2,.35,.8,.84), ...legs4(.55,.14,.8)]);
+K('dressing table','tables',['table','bedroom'],
+  [B(0,0,1.1,.45,.72,.76), ...legs4(.5,.18,.72), B(0,.2,.9,.05,.76,1.7)]);
+K('school desk','tables',['table','school'],
+  [B(0,0,.6,.45,.7,.74), ...legs4(.26,.19,.7), B(0,.1,.6,.25,.55,.58)]);
+K('teacher desk','tables',['table','school'],
+  [B(0,0,1.4,.7,.74,.78), B(0,-.1,1.4,.5,.3,.74)]);
+K('bar counter','tables',['table','counter'],
+  [B(0,0,2.0,.6,0,1.05), B(0,-.05,2.2,.75,1.05,1.12)]);
+K('reception counter','tables',['table','counter','office'],
+  [B(0,0,2.2,.7,0,1.1), B(0,-.1,2.4,.4,1.1,1.16)]);
+K('picnic table','tables',['table','outdoor','exterior'],
+  [B(0,0,1.6,.7,.7,.75), B(-.95,0,.3,1.6,.42,.47), B(.95,0,.3,1.6,.42,.47),
+   LN(-.6,-.3,0,-.6,.3,.7), LN(.6,-.3,0,.6,.3,.7)]);
+K('props table','tables',['table','backstage','theatre'],
+  [B(0,0,1.8,.75,.85,.89), ...legs4(.85,.32,.85)]);
+K('trestle table','tables',['table'],
+  [B(0,0,1.8,.75,.72,.76),
+   LN(-.7,-.3,0,-.7,.3,.72), LN(-.7,.3,0,-.7,-.3,.72),
+   LN(.7,-.3,0,.7,.3,.72), LN(.7,.3,0,.7,-.3,.72)]);
+
+// ---------- STORAGE ----------
+K('almirah','storage',['wardrobe','cupboard','indian'],
+  [B(0,0,1.0,.55,0,1.95), LN(0,-.28,0,0,-.28,1.95), LN(-.3,-.29,1.0,-.2,-.29,1.0)]);
+K('wide wardrobe','storage',['wardrobe','cupboard'],
+  [B(0,0,1.8,.6,0,2.1), LN(-.6,-.31,0,-.6,-.31,2.1), LN(.6,-.31,0,.6,-.31,2.1)]);
+K('bookshelf','storage',['shelf'],
+  [B(0,0,.9,.3,0,1.9), LN(-.45,-.16,.45,.45,-.16,.45),
+   LN(-.45,-.16,.9,.45,-.16,.9), LN(-.45,-.16,1.35,.45,-.16,1.35)]);
+K('low bookcase','storage',['shelf'],
+  [B(0,0,1.2,.3,0,.9), LN(-.6,-.16,.45,.6,-.16,.45)]);
+K('low cabinet','storage',['cupboard'],
+  [B(0,0,1.2,.45,0,.85), LN(0,-.23,0,0,-.23,.85)]);
+K('sideboard','storage',['cupboard'],
+  [B(0,0,1.6,.45,.1,.85), ...legs4(.72,.18,.1)]);
+K('tv unit','storage',['media'],
+  [B(0,0,1.6,.4,0,.5), B(0,.05,1.1,.08,.6,1.3), L(0,.05,.5,.6)]);
+K('chest trunk','storage',['box'],
+  [B(0,0,.9,.5,0,.5), LN(-.45,-.26,.4,.45,-.26,.4)]);
+K('filing cabinet','storage',['office'],
+  [B(0,0,.45,.6,0,1.3), LN(-.22,-.31,.43,.22,-.31,.43), LN(-.22,-.31,.86,.22,-.31,.86)]);
+K('lockers','storage',['school','office'],
+  [B(0,0,1.2,.5,0,1.8), LN(-.2,-.26,0,-.2,-.26,1.8), LN(.2,-.26,0,.2,-.26,1.8)]);
+K('crate','storage',['box'], [B(0,0,.6,.6,0,.6)]);
+K('crate stack','storage',['box'],
+  [B(0,0,.6,.6,0,.6), B(.05,.05,.55,.55,.6,1.15)]);
+K('barrel','storage',['drum'], [C(0,0,.3,0,.85)]);
+K('barrel stack','storage',['drum'],
+  [C(-.32,0,.3,0,.85), C(.32,0,.3,0,.85), C(0,0,.3,.85,1.7)]);
+K('display cabinet','storage',['glass'],
+  [B(0,0,1.0,.4,0,1.7), LN(-.5,-.21,.85,.5,-.21,.85)]);
+K('road case','storage',['backstage','theatre','flight case'],
+  [B(0,0,1.0,.6,.1,.9), LN(-.5,-.31,.5,.5,-.31,.5)]);
+K('costume rail','storage',['backstage','theatre','clothes'],
+  [L(-.7,0,0,1.7), L(.7,0,0,1.7), LN(-.7,0,1.7,.7,0,1.7),
+   L(-.4,0,1.2,1.7), L(0,0,1.2,1.7), L(.4,0,1.2,1.7)]);
+K('sack pile','storage',['village','bag'],
+  [C(-.3,0,.25,0,.4), C(.3,.1,.25,0,.4), C(0,-.05,.25,.4,.75)]);
+K('hay bale','storage',['village','farm'], [B(0,0,.9,.45,0,.45)]);
+K('hay stack','storage',['village','farm'],
+  [C(0,0,.8,0,1.0), C(0,0,.45,1.0,1.6)]);
+
+// ---------- PLATFORMS (generated size grid) ----------
+for (const [pw, pd] of [[1,1],[2,1],[2,2],[3,2],[4,2]]) {
+  for (const ph of [0.2, 0.4, 0.6, 0.9]) {
+    K('platform ' + pw + '\u00D7' + pd + 'm h' + ph, 'platforms',
+      ['riser','rostrum','deck'], [B(0,0,pw,pd,0,ph)]);
+  }
+}
+for (const [pr, ph] of [[0.75,0.3],[1,0.3],[1,0.6],[1.5,0.3],[1.5,0.6]]) {
+  K('round platform r' + pr + ' h' + ph, 'platforms',
+    ['riser','circle','deck'], [C(0,0,pr,0,ph)]);
+}
+K('ramp','platforms',['slope'],
+  [LN(-.75,-1,0,-.75,1,.6), LN(.75,-1,0,.75,1,.6),
+   LN(-.75,-1,0,.75,-1,0), LN(-.75,1,.6,.75,1,.6),
+   LN(-.75,1,0,-.75,1,.6), LN(.75,1,0,.75,1,.6), LN(-.75,1,0,.75,1,0)]);
+K('catwalk section','platforms',['walkway'],
+  [B(0,0,3,.8,.9,1.0), ...legs4(1.4,.35,.9),
+   ...railing(-1.5,1.5,-.4,1.0,1.9,4), ...railing(-1.5,1.5,.4,1.0,1.9,4)]);
+K('truck wagon base','platforms',['wagon','rolling'],
+  [B(0,0,2,1.5,.15,.35), B(-.8,-.6,.15,.15,0,.15), B(.8,-.6,.15,.15,0,.15),
+   B(-.8,.6,.15,.15,0,.15), B(.8,.6,.15,.15,0,.15)]);
+
+// ---------- STAIRS (generated) ----------
+for (const n of [2,3,4,5,6,7]) {
+  K('stairs ' + n + '-step','stairs',['steps','treads'], stairs(n, 1.1, .3, .18));
+}
+K('grand staircase','stairs',['steps','large'],
+  [...stairs(7, 2.4, .35, .2),
+   ...railing(-1.2,-1.2,0,0,1.6,1), ...railing(1.2,1.2,0,0,1.6,1)]);
+K('step stool','stairs',['steps','small'], stairs(2, .5, .25, .22));
+
+// ---------- ACCESS ----------
+K('straight ladder','access',['ladder','climb'],
+  [LN(-.25,0,0,-.25,.9,3), LN(.25,0,0,.25,.9,3),
+   LN(-.25,.15,.5,.25,.15,.5), LN(-.25,.3,1,.25,.3,1),
+   LN(-.25,.45,1.5,.25,.45,1.5), LN(-.25,.6,2,.25,.6,2),
+   LN(-.25,.75,2.5,.25,.75,2.5)]);
+K('a-frame ladder','access',['ladder','climb'],
+  [LN(-.25,-.4,0,-.25,0,1.8), LN(.25,-.4,0,.25,0,1.8),
+   LN(-.25,.4,0,-.25,0,1.8), LN(.25,.4,0,.25,0,1.8),
+   LN(-.25,-.28,.55,.25,-.28,.55), LN(-.25,-.16,1.1,.25,-.16,1.1),
+   LN(-.25,0,1.8,.25,0,1.8)]);
+K('scaffold tower','access',['climb','structure'],
+  [L(-.6,-.6,0,2.2), L(.6,-.6,0,2.2), L(-.6,.6,0,2.2), L(.6,.6,0,2.2),
+   B(0,0,1.3,1.3,2.0,2.1),
+   LN(-.6,-.6,0,.6,-.6,1.1), LN(.6,-.6,0,-.6,-.6,1.1),
+   LN(-.6,-.6,1.1,.6,-.6,2.0)]);
+K('rope ladder','access',['ladder','climb'],
+  [L(-.2,0,0,2.5), L(.2,0,0,2.5),
+   LN(-.2,0,.5,.2,0,.5), LN(-.2,0,1.0,.2,0,1.0),
+   LN(-.2,0,1.5,.2,0,1.5), LN(-.2,0,2.0,.2,0,2.0)]);
+K('fire escape stair','access',['stairs','ladder','urban'],
+  [B(0,0,1.6,.8,2.0,2.1), ...railing(-.8,.8,-.4,2.1,2.9,3),
+   LN(-.8,.4,0,-.8,-.4,2.0), LN(.8,.4,0,.8,-.4,2.0),
+   LN(-.8,.1,.7,-.8,-.1,.85), LN(.8,.1,.7,.8,-.1,.85)]);
+
+// ---------- WALLS & FLATS (generated widths) ----------
+for (const w of [1.2, 1.8, 2.4, 3.0, 3.6]) {
+  K('plain flat ' + w + 'm','walls',['wall','panel','flat'], [B(0,0,w,.08,0,3)]);
+}
+for (const w of [1.8, 2.4, 3.0]) {
+  K('door flat ' + w + 'm','walls',['wall','door','flat'],
+    [B(0,0,w,.08,0,3), B(0,0,.9,.1,0,2.1), LN(.3,-.06,1.0,.3,-.06,1.1)]);
+}
+for (const w of [1.8, 2.4, 3.0, 3.6]) {
+  K('window flat ' + w + 'm','walls',['wall','window','flat'],
+    [B(0,0,w,.08,0,3), B(0,0,Math.min(1.2, w*0.5),.1,1.0,2.2),
+     LN(0,-.06,1.0,0,-.06,2.2), LN(-Math.min(.6,w*.25),-.06,1.6,Math.min(.6,w*.25),-.06,1.6)]);
+}
+K('french window','walls',['wall','window','door'],
+  [B(0,0,1.8,.1,0,2.6), LN(0,-.06,0,0,-.06,2.6), LN(-.9,-.06,1.3,.9,-.06,1.3)]);
+K('archway','walls',['arch','opening'],
+  [B(-1.0,0,.4,.4,0,2.6), B(1.0,0,.4,.4,0,2.6), B(0,0,2.6,.4,2.6,3.1)]);
+K('folding screen','walls',['panel','divider'],
+  [B(-.6,-.15,.6,.05,0,1.7), B(0,.05,.6,.05,0,1.7), B(.6,-.15,.6,.05,0,1.7)]);
+K('gate','walls',['door','outdoor','exterior'],
+  [B(-1.1,0,.25,.25,0,2.2), B(1.1,0,.25,.25,0,2.2),
+   B(-.5,0,.95,.08,.1,1.8), B(.5,0,.95,.08,.1,1.8)]);
+K('small gate','walls',['door','garden','exterior'],
+  [L(-.5,0,0,1.1), L(.5,0,0,1.1), B(0,0,.9,.06,.1,1.0)]);
+K('colonnade','walls',['columns','large','period'],
+  [C(-1.8,0,.2,0,3), C(-.6,0,.2,0,3), C(.6,0,.2,0,3), C(1.8,0,.2,0,3),
+   B(0,0,4.4,.6,3,3.4)]);
+K('half wall','walls',['wall'], [B(0,0,2.4,.2,0,1.1)]);
+K('corner flat','walls',['wall','flat'],
+  [B(-.6,0,1.2,.08,0,3), B(-1.16,.6,.08,1.2,0,3)]);
+
+// ---------- CURTAINS & SOFT GOODS ----------
+K('leg curtain','curtains',['drape','masking','soft'],
+  [B(0,0,1.2,.06,0,4), LN(-.6,0,3.7,-.4,0,3.9), LN(.6,0,3.7,.4,0,3.9)]);
+K('full stage drape','curtains',['drape','masking','soft'],
+  [B(0,0,6,.08,0,4.2)]);
+K('half curtain','curtains',['drape','cafe','soft'],
+  [B(0,0,2,.05,.9,1.7), LN(-1,0,1.7,1,0,1.7)]);
+K('scrim','curtains',['drape','gauze','soft'],
+  [B(0,0,5,.03,0,4), LN(-2.5,0,2,2.5,0,2)]);
+
+// ---------- STRUCTURES ----------
+K('bridge','structures',['large','upstage'],
+  [B(0,0,6,1.4,1.3,1.55), B(-2.7,0,.7,1.4,0,1.3), B(2.7,0,.7,1.4,0,1.3),
+   ...railing(-3,3,-.7,1.55,2.3,6), ...railing(-3,3,.7,1.55,2.3,6)]);
+K('raised walkway','structures',['large','walkway'],
+  [B(0,0,5,1,1.8,2.0), L(-2.2,-.4,0,1.8), L(-2.2,.4,0,1.8),
+   L(0,-.4,0,1.8), L(0,.4,0,1.8), L(2.2,-.4,0,1.8), L(2.2,.4,0,1.8),
+   ...railing(-2.5,2.5,-.5,2.0,2.9,5)]);
+K('balcony','structures',['large','upstage'],
+  [B(0,0,3,1.2,2.2,2.4), C(-1.2,.3,.15,0,2.2), C(1.2,.3,.15,0,2.2),
+   ...railing(-1.5,1.5,-.6,2.4,3.2,6)]);
+K('juliet balcony','structures',['balcony'],
+  [B(0,0,1.6,.6,1.0,1.1), ...railing(-.8,.8,-.3,1.1,1.9,4),
+   L(-.8,.3,0,1.0), L(.8,.3,0,1.0)]);
+K('tower','structures',['large'],
+  [B(0,0,1.6,1.6,0,4), B(0,0,2.0,2.0,4,4.3),
+   ...railing(-1,1,-1,4.3,5,4), ...railing(-1,1,1,4.3,5,4)]);
+K('watchtower','structures',['large'],
+  [L(-.7,-.7,0,3), L(.7,-.7,0,3), L(-.7,.7,0,3), L(.7,.7,0,3),
+   B(0,0,1.8,1.8,3,3.15), B(0,0,1.6,1.6,3.15,4.1),
+   LN(-.7,-.7,0,.7,-.7,1.5), LN(.7,-.7,0,-.7,-.7,1.5)]);
+K('long wall','structures',['large','wall'], [B(0,0,8,.4,0,2.4)]);
+K('ruined wall','structures',['large','wall','ruins'],
+  [B(-2,0,3,.4,0,2.2), B(.8,0,2,.4,0,1.2), B(2.6,0,1,.4,0,.6)]);
+K('gazebo','structures',['large','outdoor','exterior'],
+  [C(-1,-1,.12,0,2.2), C(1,-1,.12,0,2.2), C(-1,1,.12,0,2.2), C(1,1,.12,0,2.2),
+   B(0,0,2.6,2.6,2.2,2.45), B(0,0,.4,.4,2.45,3.1), B(0,0,2.8,2.8,0,.15)]);
+K('bandstand','structures',['large','outdoor','exterior','music'],
+  [C(0,0,2.2,0,.4),
+   C(-1.7,-1,.1,.4,2.6), C(1.7,-1,.1,.4,2.6), C(-1.7,1,.1,.4,2.6),
+   C(1.7,1,.1,.4,2.6), C(0,2,.1,.4,2.6), C(0,-2,.1,.4,2.6),
+   C(0,0,2.4,2.6,2.85), C(0,0,.3,2.85,3.4)]);
+K('pergola','structures',['large','outdoor','exterior'],
+  [L(-1.5,-1,0,2.3), L(1.5,-1,0,2.3), L(-1.5,1,0,2.3), L(1.5,1,0,2.3),
+   LN(-1.7,-1,2.3,1.7,-1,2.3), LN(-1.7,1,2.3,1.7,1,2.3),
+   LN(-1.2,-1.2,2.35,-1.2,1.2,2.35), LN(0,-1.2,2.35,0,1.2,2.35),
+   LN(1.2,-1.2,2.35,1.2,1.2,2.35)]);
+K('proscenium arch piece','structures',['large','arch','theatre'],
+  [B(-3,0,.8,.6,0,4.2), B(3,0,.8,.6,0,4.2), B(0,0,6.8,.6,4.2,5)]);
+K('rooftop parapet','structures',['large','urban','rooftop'],
+  [B(0,0,6,.3,0,.9), B(-2.8,.4,.4,.4,0,1.6), B(2.8,.4,.4,.4,0,1.6)]);
+K('shed','structures',['outdoor','exterior','hut'],
+  [B(0,0,2.2,1.8,0,2), B(0,0,2.5,2.1,2,2.2),
+   B(0,-.92,.7,.06,0,1.8)]);
+K('hut','structures',['village','exterior','house'],
+  [B(0,0,2.4,2.2,0,1.8), LN(-1.3,-1.2,1.8,0,0,2.9), LN(1.3,-1.2,1.8,0,0,2.9),
+   LN(-1.3,1.2,1.8,0,0,2.9), LN(1.3,1.2,1.8,0,0,2.9),
+   B(0,-1.05,.7,.1,0,1.5)]);
+K('tent','structures',['camp','outdoor','exterior'],
+  [LN(0,-1.2,0,0,0,1.6), LN(0,1.2,0,0,0,1.6),
+   LN(-1,-1.2,0,0,-1.2,1.6), LN(1,-1.2,0,0,-1.2,1.6),
+   LN(-1,1.2,0,0,1.2,1.6), LN(1,1.2,0,0,1.2,1.6),
+   LN(-1,-1.2,0,-1,1.2,0), LN(1,-1.2,0,1,1.2,0),
+   LN(0,-1.2,1.6,0,1.2,1.6)]);
+K('teepee','structures',['camp','outdoor','exterior'],
+  [LN(-.9,-.9,0,0,0,2.4), LN(.9,-.9,0,0,0,2.4),
+   LN(-.9,.9,0,0,0,2.4), LN(.9,.9,0,0,0,2.4),
+   LN(-1.2,0,0,0,0,2.4), LN(1.2,0,0,0,0,2.4),
+   LN(0,0,2.4,0,0,2.9)]);
+K('market stall','structures',['market','village','shop'],
+  [B(0,0,1.8,.8,.8,.9), ...legs4(.85,.35,.8),
+   L(-.85,-.35,.9,2.1), L(.85,-.35,.9,2.1), L(-.85,.35,.9,2.1), L(.85,.35,.9,2.1),
+   B(0,0,2.1,1.1,2.1,2.2)]);
+K('ticket booth','structures',['station','booth'],
+  [B(0,0,1.2,1.2,0,2.3), LN(-.4,-.61,1.1,.4,-.61,1.1), LN(-.4,-.61,1.7,.4,-.61,1.7)]);
+K('phone booth','structures',['street','booth','urban'],
+  [B(0,0,.9,.9,0,2.4), LN(-.45,-.46,.3,-.45,-.46,2.1)]);
+K('bus stop shelter','structures',['street','urban','exterior'],
+  [L(-1.1,.3,0,2.3), L(1.1,.3,0,2.3), B(0,.15,2.6,.9,2.3,2.42),
+   B(0,.3,2.4,.06,.4,2.3), B(0,-.05,1.8,.35,.45,.5)]);
+
+// ---------- GARDEN & TREES ----------
+K('tree','garden',['plant','exterior','oak'],
+  [C(0,0,.15,0,1.2), C(0,0,.7,1.2,2.6), C(0,0,.45,2.6,3.3)]);
+K('large tree','garden',['plant','exterior'],
+  [C(0,0,.25,0,1.6), C(0,0,1.1,1.6,3.4), C(0,0,.7,3.4,4.3)]);
+K('small tree','garden',['plant','exterior'],
+  [C(0,0,.1,0,.9), C(0,0,.45,.9,1.9)]);
+K('pine tree','garden',['plant','exterior'],
+  [C(0,0,.12,0,.8), LN(-.7,0,.8,0,0,3), LN(.7,0,.8,0,0,3),
+   LN(0,-.7,.8,0,0,3), LN(0,.7,.8,0,0,3), C(0,0,.7,.8,.85)]);
+K('palm tree','garden',['plant','exterior','tropical'],
+  [C(0,0,.12,0,2.6),
+   LN(0,0,2.6,-1,-.3,2.2), LN(0,0,2.6,1,-.3,2.2),
+   LN(0,0,2.6,-.6,.8,2.3), LN(0,0,2.6,.6,.8,2.3),
+   LN(0,0,2.6,0,-1,2.3), LN(0,0,2.6,0,1,2.3)]);
+K('bare tree','garden',['plant','exterior','winter','dead'],
+  [C(0,0,.13,0,1.6),
+   LN(0,0,1.6,-.8,-.2,2.6), LN(0,0,1.6,.9,.1,2.7),
+   LN(0,0,1.8,-.4,.5,2.9), LN(0,0,2.0,.4,-.5,3.0),
+   LN(-.8,-.2,2.6,-1.2,-.3,3.0), LN(.9,.1,2.7,1.3,.2,3.1)]);
+K('cypress','garden',['plant','exterior'],
+  [C(0,0,.3,0,2.4), C(0,0,.15,2.4,3.2)]);
+K('willow','garden',['plant','exterior'],
+  [C(0,0,.18,0,1.8), C(0,0,.8,1.8,2.8),
+   LN(-.8,0,2.4,-1.0,0,1.0), LN(.8,0,2.4,1.0,0,1.0),
+   LN(0,-.8,2.4,0,-1.0,1.0), LN(0,.8,2.4,0,1.0,1.0)]);
+K('bush','garden',['plant','exterior'], [C(0,0,.45,0,.7)]);
+K('hedge','garden',['plant','exterior'], [B(0,0,1.5,.5,0,1.0)]);
+K('long hedge','garden',['plant','exterior'], [B(0,0,3.5,.5,0,1.0)]);
+K('topiary ball','garden',['plant','exterior'],
+  [C(0,0,.06,0,.6), C(0,0,.35,.6,1.3), C(0,0,.25,0,.06)]);
+K('flower bed','garden',['plant','exterior'], [B(0,0,1.6,.7,0,.18)]);
+K('potted plant','garden',['plant'],
+  [C(0,0,.2,0,.35), C(0,0,.32,.35,.95)]);
+K('planter box','garden',['plant','exterior'],
+  [B(0,0,1.2,.4,0,.45), B(0,0,1.0,.3,.45,.8)]);
+K('tree stump','garden',['exterior','wood'], [C(0,0,.3,0,.4)]);
+K('log','garden',['exterior','wood'], [B(0,0,1.6,.35,0,.35)]);
+K('round fountain','garden',['water','exterior','fountain'],
+  [C(0,0,1.0,0,.45), C(0,0,.18,0,1.0), C(0,0,.45,1.0,1.15)]);
+K('tiered fountain','garden',['water','exterior','fountain'],
+  [C(0,0,1.1,0,.4), C(0,0,.15,.4,1.0), C(0,0,.55,1.0,1.15),
+   C(0,0,.1,1.15,1.6), C(0,0,.3,1.6,1.72)]);
+K('birdbath','garden',['water','exterior'],
+  [C(0,0,.08,0,.85), C(0,0,.3,.85,.95), C(0,0,.2,0,.05)]);
+K('sundial','garden',['exterior','period'],
+  [C(0,0,.12,0,.9), C(0,0,.28,.9,.98), LN(-.15,0,.98,.15,0,1.2)]);
+K('statue on plinth','garden',['exterior','period','sculpture'],
+  [B(0,0,.7,.7,0,.9), B(0,0,.35,.3,.9,1.4), C(0,0,.12,1.4,2.1), C(0,0,.11,2.1,2.32)]);
+K('obelisk','garden',['exterior','period','monument'],
+  [B(0,0,.8,.8,0,.4), B(0,0,.5,.5,.4,2.6), B(0,0,.2,.2,2.6,3.0)]);
+K('urn on pedestal','garden',['exterior','period'],
+  [B(0,0,.5,.5,0,.7), C(0,0,.22,.7,1.15), C(0,0,.3,1.0,1.1)]);
+K('garden arch','garden',['exterior','arch'],
+  [L(-.7,0,0,2.0), L(.7,0,0,2.0),
+   LN(-.7,0,2.0,-.35,0,2.3), LN(.7,0,2.0,.35,0,2.3), LN(-.35,0,2.3,.35,0,2.3)]);
+K('trellis','garden',['exterior','lattice'],
+  [B(0,0,1.2,.05,0,2),
+   LN(-.6,-.03,.5,.6,-.03,.5), LN(-.6,-.03,1.0,.6,-.03,1.0),
+   LN(-.6,-.03,1.5,.6,-.03,1.5), LN(-.2,-.03,0,-.2,-.03,2), LN(.2,-.03,0,.2,-.03,2)]);
+K('picket fence','garden',['fence','exterior'],
+  [...railing(-1.2,1.2,0,0,.9,7), LN(-1.2,0,.45,1.2,0,.45)]);
+K('iron fence','garden',['fence','exterior'],
+  [...railing(-1.2,1.2,0,0,1.4,5), LN(-1.2,0,.2,1.2,0,.2),
+   L(-1.2,0,1.4,1.55), L(0,0,1.4,1.55), L(1.2,0,1.4,1.55)]);
+K('stone wall low','garden',['wall','exterior'], [B(0,0,2.4,.4,0,.8)]);
+K('wheelbarrow','garden',['exterior','tool'],
+  [B(0,-.1,.6,.8,.25,.55), ...vcirc(0,-.6,.2,.2,'z'),
+   LN(-.25,.3,.4,-.25,.8,.35), LN(.25,.3,.4,.25,.8,.35)]);
+K('washing line','garden',['exterior','domestic'],
+  [L(-1.4,0,0,1.8), L(1.4,0,0,1.8), LN(-1.4,0,1.8,1.4,0,1.8),
+   LN(-.8,0,1.8,-.8,0,1.1), LN(0,0,1.8,0,0,1.2), LN(.8,0,1.8,.8,0,1.05)]);
+K('swing','garden',['playground','exterior'],
+  [LN(-.9,-.5,0,-.9,0,2.2), LN(-.9,.5,0,-.9,0,2.2),
+   LN(.9,-.5,0,.9,0,2.2), LN(.9,.5,0,.9,0,2.2),
+   LN(-.9,0,2.2,.9,0,2.2),
+   L(-.3,0,.5,2.2), L(.3,0,.5,2.2), B(0,0,.6,.25,.45,.5)]);
+K('seesaw','garden',['playground','exterior'],
+  [B(0,0,.3,.3,0,.4), LN(-1.4,0,.15,1.4,0,.65),
+   B(-1.3,0,.35,.25,.62,.68)]);
+K('slide','garden',['playground','exterior'],
+  [LN(-.3,.8,0,-.3,.8,1.6), LN(.3,.8,0,.3,.8,1.6),
+   LN(-.3,.8,1.6,-.3,-1.2,.1), LN(.3,.8,1.6,.3,-1.2,.1),
+   LN(-.3,.8,.5,.3,.8,.5), LN(-.3,.8,1.0,.3,.8,1.0)]);
+K('sandbox','garden',['playground','exterior'],
+  [B(0,0,1.6,1.6,0,.25)]);
+K('well','garden',['village','exterior','water'],
+  [C(0,0,.55,0,.8), L(-.55,0,0,1.8), L(.55,0,0,1.8), B(0,0,1.4,.9,1.8,2.05)]);
+
+// ---------- STREET & ROAD ----------
+K('lamp post','street',['light','exterior','urban'],
+  [L(0,0,0,3), B(0,0,.25,.25,3,3.25), C(0,0,.18,0,.1)]);
+K('double lamp post','street',['light','exterior','urban'],
+  [L(0,0,0,3.2), LN(0,0,3.0,-.5,0,3.2), LN(0,0,3.0,.5,0,3.2),
+   B(-.5,0,.2,.2,3.2,3.4), B(.5,0,.2,.2,3.2,3.4), C(0,0,.18,0,.1)]);
+K('traffic light','street',['light','urban','signal'],
+  [L(0,0,0,2.6), B(0,0,.3,.2,2.0,2.9)]);
+K('street sign','street',['sign','urban'],
+  [L(0,0,0,2.2), B(0,0,.7,.05,2.0,2.25)]);
+K('signpost','street',['sign'],
+  [L(0,0,0,2.4), B(.35,0,.6,.04,2.0,2.2), B(-.3,0,.5,.04,1.6,1.8)]);
+K('mailbox','street',['post','urban'],
+  [L(0,0,0,1.0), B(0,0,.45,.35,1.0,1.4)]);
+K('fire hydrant','street',['urban','water'],
+  [C(0,0,.14,0,.7), C(0,0,.18,.5,.58), C(0,0,.08,.7,.82)]);
+K('trash bin','street',['bin','urban'], [C(0,0,.25,0,.85)]);
+K('dumpster','street',['bin','urban'],
+  [B(0,0,1.6,1.0,.15,1.2), LN(-.8,-.5,1.2,.8,-.5,1.35)]);
+K('traffic cone','street',['urban','marker'],
+  [B(0,0,.35,.35,0,.06), C(0,0,.12,.06,.55), C(0,0,.04,.55,.62)]);
+K('street barricade','street',['barrier','urban'],
+  [LN(-.6,-.2,0,-.6,.2,1), LN(.6,-.2,0,.6,.2,1), B(0,0,1.3,.08,.75,.95)]);
+K('manhole cover','street',['urban','floor'], [C(0,0,.35,0,.03)]);
+K('road section','street',['road','floor','ground'],
+  [B(0,0,4,3,0,.02), LN(-2,0,.03,-.8,0,.03), LN(-.3,0,.03,.9,0,.03), LN(1.4,0,.03,2,0,.03)]);
+K('crosswalk section','street',['road','zebra','floor'],
+  [B(0,0,3,2,0,.02),
+   B(-1.1,0,.4,2,.02,.04), B(-.35,0,.4,2,.02,.04),
+   B(.35,0,.4,2,.02,.04), B(1.1,0,.4,2,.02,.04)]);
+K('sidewalk section','street',['road','pavement','floor'],
+  [B(0,0,3,1.2,0,.12)]);
+K('kerb section','street',['road','floor'], [B(0,0,3,.2,0,.14)]);
+K('bicycle','street',['vehicle','cycle'],
+  [...vcirc(-.5,0,.33,.33,'z'), ...vcirc(.5,0,.33,.33,'z'),
+   LN(-.5,0,.33,0,0,.85), LN(.5,0,.33,0,0,.85),
+   LN(.5,0,.33,.4,0,1.0), LN(-.5,0,.9,-.3,0,.95), L(-.5,0,.33,.9)]);
+K('cycle rickshaw','street',['vehicle','rickshaw','indian'],
+  [...vcirc(-.6,-.5,.35,.35,'z'), ...vcirc(.6,-.5,.35,.35,'z'),
+   ...vcirc(0,.7,.35,.35,'z'),
+   B(0,-.35,1.0,.7,.6,.75), B(0,-.55,1.0,.15,.75,1.3),
+   LN(0,.7,.35,0,.1,.8)]);
+K('auto rickshaw','street',['vehicle','rickshaw','indian','auto'],
+  [B(0,0,1.2,2.0,.3,1.1), B(0,-.2,1.1,1.2,1.1,1.6),
+   B(-.55,.6,.15,.35,0,.3), B(.55,.6,.15,.35,0,.3), B(0,-.85,.15,.35,0,.3)]);
+K('car','street',['vehicle'],
+  [B(0,0,1.7,3.8,.35,.85), B(0,.1,1.6,2.0,.85,1.35),
+   B(-.85,-1.2,.2,.6,0,.35), B(.85,-1.2,.2,.6,0,.35),
+   B(-.85,1.2,.2,.6,0,.35), B(.85,1.2,.2,.6,0,.35)]);
+K('handcart','street',['vehicle','cart','market','indian'],
+  [B(0,.2,1.0,1.6,.5,.85), ...vcirc(-.55,.5,.35,.35,'z'), ...vcirc(.55,.5,.35,.35,'z'),
+   LN(-.3,-.6,.5,-.3,-1.4,.3), LN(.3,-.6,.5,.3,-1.4,.3)]);
+K('notice board','street',['sign','board'],
+  [B(0,0,1.4,.08,.9,1.9), L(-.6,0,0,.9), L(.6,0,0,.9)]);
+
+// ---------- STATION & RAIL ----------
+K('rail track section','station',['rail','train','track','floor'],
+  [LN(-2.5,-.35,.08,2.5,-.35,.08), LN(-2.5,.35,.08,2.5,.35,.08),
+   B(-2,0,.25,1.0,0,.06), B(-1,0,.25,1.0,0,.06), B(0,0,.25,1.0,0,.06),
+   B(1,0,.25,1.0,0,.06), B(2,0,.25,1.0,0,.06)]);
+K('station platform','station',['rail','train','platform'],
+  [B(0,0,6,2,0,.9), B(0,-.9,6,.15,.9,.95)]);
+K('buffer stop','station',['rail','train'],
+  [B(0,0,1.2,.3,.5,.9), LN(-.5,.5,0,-.5,-.1,.7), LN(.5,.5,0,.5,-.1,.7)]);
+K('railway signal','station',['rail','train','signal'],
+  [L(0,0,0,3), B(.3,0,.7,.06,2.5,2.7)]);
+K('station clock','station',['rail','clock'],
+  [L(0,0,0,2.6), C(0,0,.3,2.6,2.7)]);
+K('luggage trolley','station',['rail','luggage'],
+  [B(0,0,.9,.6,.25,.35), ...vcirc(-.35,.25,.12,.12,'z'), ...vcirc(.35,.25,.12,.12,'z'),
+   L(-.4,-.3,.35,1.1), L(.4,-.3,.35,1.1), LN(-.4,-.3,1.1,.4,-.3,1.1)]);
+K('suitcase pile','station',['luggage','travel'],
+  [B(0,0,.7,.4,0,.25), B(.05,.03,.6,.35,.25,.45), B(-.03,-.02,.5,.3,.45,.62)]);
+K('train carriage','station',['rail','train','large'],
+  [B(0,0,6,2.4,.5,3.0),
+   B(-2.4,-1.2,.5,.15,0,.5), B(-1.2,-1.2,.5,.15,0,.5),
+   B(1.2,-1.2,.5,.15,0,.5), B(2.4,-1.2,.5,.15,0,.5),
+   LN(-2.6,-1.21,1.4,2.6,-1.21,1.4), LN(-2.6,-1.21,2.3,2.6,-1.21,2.3)]);
+K('locomotive','station',['rail','train','engine','large'],
+  [B(-1,0,3.5,2.2,.5,2.2), B(1.9,0,1.6,2.2,.5,3.0),
+   C(-2.2,0,.25,2.2,3.0),
+   B(-2.4,-1.1,.5,.15,0,.5), B(-.8,-1.1,.5,.15,0,.5), B(1.6,-1.1,.5,.15,0,.5)]);
+
+// ---------- DOMESTIC ----------
+K('single bed','domestic',['bed','bedroom'],
+  [B(0,0,1.0,2.0,.35,.55), B(0,.95,1.0,.1,.55,1.1), ...legs4(.45,.95,.35)]);
+K('double bed','domestic',['bed','bedroom'],
+  [B(0,0,1.6,2.0,.35,.55), B(0,.95,1.6,.1,.55,1.2), ...legs4(.75,.95,.35)]);
+K('four-poster bed','domestic',['bed','bedroom','period'],
+  [B(0,0,1.6,2.0,.4,.6), B(0,.95,1.6,.1,.6,1.2),
+   L(-.78,-.98,0,2.1), L(.78,-.98,0,2.1), L(-.78,.98,0,2.1), L(.78,.98,0,2.1),
+   LN(-.78,-.98,2.1,.78,-.98,2.1), LN(-.78,.98,2.1,.78,.98,2.1),
+   LN(-.78,-.98,2.1,-.78,.98,2.1), LN(.78,-.98,2.1,.78,.98,2.1)]);
+K('bunk bed','domestic',['bed','bedroom'],
+  [B(0,0,1.0,2.0,.35,.5), B(0,0,1.0,2.0,1.5,1.65),
+   L(-.5,-1,0,1.9), L(.5,-1,0,1.9), L(-.5,1,0,1.9), L(.5,1,0,1.9),
+   LN(.5,-.6,.5,.5,-.6,1.5), LN(.5,-.2,.5,.5,-.2,1.5)]);
+K('daybed','domestic',['bed','couch'],
+  [B(0,0,1.9,.9,.3,.5), B(-.9,0,.12,.9,.5,.9)]);
+K('cot mattress','domestic',['bed','floor'], [B(0,0,.9,1.9,0,.18)]);
+K('crib','domestic',['bed','baby'],
+  [B(0,0,.7,1.2,.5,.65), ...legs4(.32,.56,.5),
+   ...railing(-.32,.32,-.58,.65,1.1,4), ...railing(-.32,.32,.58,.65,1.1,4)]);
+K('high chair','domestic',['seat','baby'],
+  [B(0,0,.4,.4,.85,.9), B(0,.16,.4,.06,.9,1.25),
+   LN(-.18,-.18,0,-.22,-.22,.85), LN(.18,-.18,0,.22,-.22,.85),
+   LN(-.18,.18,0,-.22,.22,.85), LN(.18,.18,0,.22,.22,.85),
+   B(0,-.15,.45,.2,1.0,1.04)]);
+K('rocking horse','domestic',['toy','baby'],
+  [B(0,0,.25,.8,.4,.7), L(0,-.35,.7,1.0), B(0,-.4,.2,.25,1.0,1.2),
+   LN(-.15,-.5,.02,-.15,.5,.02), LN(.15,-.5,.02,.15,.5,.02),
+   LN(-.15,-.4,.02,-.15,-.3,.45), LN(.15,.4,.02,.15,.3,.45)]);
+K('bathtub','domestic',['bathroom'], [B(0,0,1.6,.7,0,.55)]);
+K('toilet','domestic',['bathroom'],
+  [B(0,.2,.45,.25,0,.75), B(0,-.1,.4,.45,.35,.42)]);
+K('shower stall','domestic',['bathroom'],
+  [B(-.45,0,.06,.9,0,2), B(.45,0,.06,.9,0,2), B(0,.45,.9,.06,0,2),
+   L(0,.35,1.9,2.1)]);
+K('sink unit','domestic',['kitchen','bathroom'],
+  [B(0,0,.6,.5,0,.85), B(0,0,.4,.3,.85,.92)]);
+K('kitchen counter','domestic',['kitchen','counter'],
+  [B(0,0,1.8,.6,0,.9), LN(-.9,-.31,.9,.9,-.31,.9)]);
+K('stove unit','domestic',['kitchen'],
+  [B(0,0,.6,.6,0,.9), C(-.14,-.14,.09,.9,.92), C(.14,-.14,.09,.9,.92),
+   C(-.14,.14,.09,.9,.92), C(.14,.14,.09,.9,.92)]);
+K('fridge','domestic',['kitchen'],
+  [B(0,0,.7,.65,0,1.8), LN(-.35,-.34,1.2,.35,-.34,1.2)]);
+K('washing machine','domestic',['laundry'],
+  [B(0,0,.6,.6,0,.85), ...vcirc(0,-.31,.45,.2,'x')]);
+K('ironing board','domestic',['laundry'],
+  [B(0,0,.35,1.2,.85,.88), LN(-.15,-.45,0,.15,.45,.85), LN(.15,-.45,0,-.15,.45,.85)]);
+K('radio cabinet','domestic',['media','period'],
+  [B(0,0,.6,.35,.2,1.0), ...legs4(.26,.14,.2)]);
+K('tv on stand','domestic',['media'],
+  [B(0,0,1.0,.08,.7,1.3), L(0,0,.4,.7), B(0,0,.5,.35,.35,.42), ...legs4(.2,.14,0)]);
+K('fireplace','domestic',['period','hearth'],
+  [B(-.7,0,.3,.4,0,1.2), B(.7,0,.3,.4,0,1.2), B(0,0,1.7,.4,1.2,1.4),
+   B(0,.1,1.0,.2,0,.9)]);
+K('grandfather clock','domestic',['clock','period'],
+  [B(0,0,.5,.35,0,2.0), C(0,-.18,.16,1.6,1.62)]);
+K('standing mirror','domestic',['mirror'],
+  [B(0,0,.6,.08,.3,1.8), LN(-.3,-.2,0,-.3,.2,0), LN(.3,-.2,0,.3,.2,0),
+   L(-.3,0,0,.3), L(.3,0,0,.3)]);
+K('coat stand','domestic',['stand'],
+  [L(0,0,0,1.8), LN(-.25,0,1.7,.25,0,1.7), LN(0,-.25,1.65,0,.25,1.65), C(0,0,.25,0,.05)]);
+K('bookcase ladder','domestic',['library','ladder'],
+  [LN(-.2,0,0,-.2,.5,2.2), LN(.2,0,0,.2,.5,2.2),
+   LN(-.2,.12,.55,.2,.12,.55), LN(-.2,.24,1.1,.2,.24,1.1), LN(-.2,.36,1.65,.2,.36,1.65)]);
+
+// ---------- OFFICE & SCHOOL ----------
+K('blackboard','office',['school','board'],
+  [B(0,0,1.8,.06,.9,2.0), L(-.8,0,0,.9), L(.8,0,0,.9)]);
+K('whiteboard','office',['school','board'],
+  [B(0,0,1.6,.06,.95,2.0), L(-.7,0,0,.95), L(.7,0,0,.95)]);
+K('easel','office',['art','board'],
+  [LN(-.4,.25,0,0,0,1.7), LN(.4,.25,0,0,0,1.7), LN(0,-.4,0,0,0,1.7),
+   B(0,.05,.7,.05,.7,1.5)]);
+K('projector screen on stand','office',['screen','presentation'],
+  [B(0,0,1.8,.05,.8,2.0), L(0,0,0,.8), LN(-.4,-.25,0,.4,.25,0), LN(.4,-.25,0,-.4,.25,0)]);
+K('lectern','office',['speech','podium'],
+  [B(0,0,.55,.45,0,1.1), B(0,-.05,.6,.5,1.1,1.18)]);
+K('water cooler','office',['water'],
+  [B(0,0,.35,.35,0,1.0), C(0,0,.14,1.0,1.35)]);
+K('flip chart','office',['board','presentation'],
+  [B(0,0,.7,.05,.9,1.9), LN(-.3,.2,0,0,0,.9), LN(.3,.2,0,0,0,.9), LN(0,-.35,0,0,0,.9)]);
+K('bench desk','office',['school','table'],
+  [B(0,0,1.2,.4,.7,.74), B(0,.35,1.2,.3,.4,.45), ...legs4(.55,.3,.7)]);
+
+// ---------- MUSIC & BAND ----------
+K('piano','music',['instrument'],
+  [B(0,.1,1.5,.7,.7,1.0), B(0,-.28,1.5,.25,.7,.78), ...legs4(.65,.35,.7)]);
+K('grand piano','music',['instrument','large'],
+  [B(-.3,0,1.6,1.2,.75,1.0), B(.75,.1,.7,.9,.75,1.0),
+   L(-.9,-.5,0,.75), L(-.9,.5,0,.75), L(.9,.2,0,.75)]);
+K('piano stool','music',['seat','instrument'],
+  [B(0,0,.55,.32,.48,.53), ...legs4(.24,.13,.48)]);
+K('drum kit','music',['instrument','band'],
+  [C(0,.1,.3,.2,.6), C(-.5,-.1,.18,.3,.55), C(.5,-.1,.18,.3,.55),
+   L(-.7,.2,0,1.1), C(-.7,.2,.2,1.1,1.13),
+   L(.7,.2,0,1.2), C(.7,.2,.2,1.2,1.23)]);
+K('speaker stack','music',['band','pa','sound'],
+  [B(0,0,.6,.5,0,.8), B(0,0,.55,.45,.8,1.5)]);
+K('guitar amp','music',['band','sound'], [B(0,0,.6,.35,0,.55)]);
+K('keyboard on stand','music',['instrument','band'],
+  [B(0,0,1.2,.35,.85,.92), LN(-.4,-.15,0,.4,.15,.85), LN(.4,-.15,0,-.4,.15,.85)]);
+K('mic stand','music',['band','microphone'],
+  [L(0,0,0,1.5), LN(0,0,1.5,.25,-.15,1.65), C(0,0,.22,0,.03)]);
+K('music stand','music',['sheet'],
+  [L(0,0,0,1.1), B(0,.03,.45,.04,1.1,1.45), C(0,0,.2,0,.03)]);
+K('harp','music',['instrument','period'],
+  [LN(0,-.4,0,0,-.4,1.7), LN(0,-.4,1.7,0,.5,.9), LN(0,.5,.9,0,.4,0),
+   LN(0,.4,0,0,-.4,0), LN(0,-.2,.3,0,-.25,1.5), LN(0,0,.4,0,-.1,1.3)]);
+K('conductor podium','music',['podium'],
+  [B(0,0,.9,.9,0,.25), L(0,.4,.25,1.2), B(0,.42,.4,.04,1.2,1.4)]);
+
+// ---------- VILLAGE & PERIOD ----------
+K('spinning wheel','village',['craft','period','indian'],
+  [...vcirc(-.35,0,.5,.4,'z'), B(.3,0,.5,.25,.35,.42), ...legs4(.45,.2,.35),
+   LN(-.35,0,.9,.3,0,.55)]);
+K('loom','village',['craft','weave','indian'],
+  [L(-.6,-.4,0,1.4), L(.6,-.4,0,1.4), L(-.6,.4,0,1.4), L(.6,.4,0,1.4),
+   LN(-.6,-.4,1.4,.6,-.4,1.4), LN(-.6,.4,1.4,.6,.4,1.4),
+   LN(-.6,-.4,.8,.6,-.4,.8), LN(-.5,-.4,.8,-.5,.4,.8), LN(0,-.4,.8,0,.4,.8),
+   LN(.5,-.4,.8,.5,.4,.8)]);
+K('grinding stone','village',['craft','indian','chakki'],
+  [C(0,0,.35,0,.18), C(0,0,.33,.18,.32), L(.25,0,.32,.55)]);
+K('water pot stack','village',['pot','indian','matka'],
+  [C(0,0,.28,0,.4), C(0,0,.24,.4,.75), C(0,0,.18,.75,1.0)]);
+K('clay oven chulha','village',['kitchen','indian','fire'],
+  [B(0,0,.6,.5,0,.35), B(0,-.22,.25,.1,.1,.28)]);
+K('altar','village',['period','church','ritual'],
+  [B(0,0,1.4,.7,0,.95), B(0,0,1.6,.85,.95,1.05)]);
+K('shrine','village',['temple','ritual','indian'],
+  [B(0,0,.9,.7,0,.15), B(0,0,.7,.55,.15,1.2),
+   LN(-.35,-.28,1.2,0,0,1.7), LN(.35,-.28,1.2,0,0,1.7),
+   LN(-.35,.28,1.2,0,0,1.7), LN(.35,.28,1.2,0,0,1.7)]);
+K('pulpit','village',['church','speech'],
+  [B(0,0,.7,.7,0,.3), B(0,0,.6,.55,.3,1.25), B(0,-.05,.7,.6,1.25,1.33)]);
+K('candelabra','village',['period','light','candle'],
+  [L(0,0,0,1.3), LN(-.35,0,1.2,.35,0,1.2),
+   L(-.35,0,1.2,1.45), L(0,0,1.3,1.5), L(.35,0,1.2,1.45), C(0,0,.2,0,.04)]);
+K('torch stand','village',['period','light','fire'],
+  [L(0,0,0,1.6), C(0,0,.12,1.6,1.85), C(0,0,.22,0,.05)]);
+K('brazier','village',['period','fire'],
+  [C(0,0,.3,.6,.8), L(-.2,-.2,0,.6), L(.2,-.2,0,.6), L(0,.25,0,.6)]);
+K('campfire','village',['camp','fire','exterior'],
+  [B(-.2,.1,.7,.15,0,.15), B(.15,-.1,.7,.15,.05,.2),
+   LN(0,0,.2,-.15,.05,.6), LN(.1,-.05,.2,.15,0,.65), LN(-.1,.05,.2,0,0,.7)]);
+K('coffin','village',['period','funeral'],
+  [B(0,0,.7,2.0,0,.45)]);
+K('gravestone','village',['period','funeral','cemetery'],
+  [B(0,0,.6,.15,0,.85), B(0,0,.5,.13,.85,.98)]);
+K('cross marker','village',['period','funeral','cemetery'],
+  [L(0,0,0,1.3), LN(-.3,0,.95,.3,0,.95)]);
+K('column','village',['period','pillar'],
+  [C(0,0,.22,0,3), B(0,0,.6,.6,0,.15), B(0,0,.55,.55,3,3.15)]);
+K('broken column','village',['period','pillar','ruins'],
+  [C(0,0,.22,0,1.3), B(0,0,.6,.6,0,.15)]);
+K('boat','village',['water','vehicle'],
+  [B(0,0,1.1,2.6,.15,.6), LN(0,-1.3,.15,0,-1.7,.7), LN(0,1.3,.15,0,1.7,.7)]);
+K('canoe','village',['water','vehicle'],
+  [B(0,0,.7,2.8,.1,.4), LN(0,-1.4,.1,0,-1.8,.55), LN(0,1.4,.1,0,1.8,.55)]);
+K('bullock cart','village',['vehicle','cart','indian'],
+  [B(0,.3,1.1,1.8,.55,.85), ...vcirc(-.6,.5,.45,.45,'z'), ...vcirc(.6,.5,.45,.45,'z'),
+   LN(-.25,-.6,.55,-.25,-1.8,.45), LN(.25,-.6,.55,.25,-1.8,.45),
+   LN(-.25,-1.8,.45,.25,-1.8,.45)]);
+K('palanquin','village',['period','indian','carry'],
+  [B(0,0,1.1,.8,.4,1.3), LN(-1.5,0,.85,1.5,0,.85), ...legs4(.5,.35,.4)]);
+
+// ---------- THEATRE & BACKSTAGE ----------
+K('ghost light','theatre',['backstage','light'],
+  [L(0,0,0,1.7), C(0,0,.12,1.7,1.95), C(0,0,.28,0,.06)]);
+K('stage brace','theatre',['backstage','support'],
+  [LN(0,.3,0,0,-.1,1.8), LN(-.25,.35,0,.25,.35,0), B(0,.35,.5,.1,0,.05)]);
+K('stage weight','theatre',['backstage'], [B(0,0,.35,.25,0,.15)]);
+K('sandbag','theatre',['backstage'], [B(0,0,.3,.15,0,.35)]);
+K('rope coil','theatre',['backstage'], [C(0,0,.3,0,.12)]);
+K('followspot on stand','theatre',['light','fixture'],
+  [B(0,0,.35,.8,1.3,1.6), LN(-.35,.2,0,0,0,1.3), LN(.35,.2,0,0,0,1.3), LN(0,-.4,0,0,0,1.3)]);
+K('makeup station','theatre',['backstage','dressing'],
+  [B(0,0,1.1,.5,.72,.76), ...legs4(.5,.2,.72), B(0,.2,1.0,.05,.76,1.8),
+   C(-.4,.18,.05,1.7,1.72), C(.4,.18,.05,1.7,1.72)]);
+K('quick-change booth','theatre',['backstage','dressing'],
+  [B(-.6,0,.06,1.2,0,2), B(.6,0,.06,1.2,0,2), B(0,.6,1.2,.06,0,2),
+   LN(-.6,-.6,1.9,.6,-.6,1.9)]);
+K('orchestra chair','theatre',['seat','music'],
+  [B(0,0,.45,.45,.44,.48), B(0,.18,.45,.06,.48,.85), ...legs4(.19,.19,.44)]);
+K('audience seat block','theatre',['seat','audience'],
+  [B(-.75,0,.5,.5,.4,.9), B(-.25,0,.5,.5,.4,.9),
+   B(.25,0,.5,.5,.4,.9), B(.75,0,.5,.5,.4,.9)]);
+
+// ---------- MISC ----------
+K('podium lectern','misc',['speech'],
+  [B(0,0,.55,.45,0,1.1), B(0,-.05,.6,.5,1.1,1.18)]);
+K('flag pole','misc',['flag'],
+  [L(0,0,0,3.5), B(.35,0,.6,.02,3.0,3.4)]);
+K('rope bollard','misc',['queue'],
+  [L(0,0,0,.95), C(0,0,.18,0,.06), C(0,0,.06,.95,1.0)]);
+K('telescope on tripod','misc',['science'],
+  [LN(-.35,.2,0,0,0,1.2), LN(.35,.2,0,0,0,1.2), LN(0,-.4,0,0,0,1.2),
+   LN(-.2,.15,1.2,.3,-.25,1.5)]);
+K('globe on stand','misc',['study'],
+  [L(0,0,0,.85), C(0,0,.3,.85,1.45), C(0,0,.25,0,.05)]);
+K('birdcage on stand','misc',['prop'],
+  [L(0,0,0,1.4), C(0,0,.25,1.4,1.9), C(0,0,.05,1.9,2.0), C(0,0,.22,0,.05)]);
+K('umbrella stand','misc',['prop'],
+  [C(0,0,.15,0,.6), LN(.05,0,.6,.15,0,1.1), LN(-.05,0,.6,-.12,0,1.05)]);
+K('mannequin','misc',['prop','costume'],
+  [L(0,0,0,.9), C(0,0,.2,.9,1.5), C(0,0,.08,1.5,1.62), C(0,0,.25,0,.04)]);
+K('merry-go-round small','misc',['playground','exterior'],
+  [C(0,0,.9,.3,.4), L(0,0,.4,1.1),
+   LN(0,0,1.0,-.8,0,.45), LN(0,0,1.0,.8,0,.45), LN(0,0,1.0,0,-.8,.45), LN(0,0,1.0,0,.8,.45)]);
+
+// -------------------- STARTER SCENES (50) --------------------
+function place(name, x, z, rot=0, scale=1, opts={}) {
+  return { name, x, z, rot, scale, ...opts };
+}
+const P_ = place;
+const STARTERS = [
+  { name:'living room', items:(w,d)=>[
+    P_('sofa 3-seat',0,d*.62), P_('coffee table',0,d*.45),
+    P_('armchair',-w*.35,d*.5,45), P_('armchair',w*.35,d*.5,-45),
+    P_('side table',w*.28,d*.65), P_('bookshelf',-w*.45,d*.8),
+    P_('tv on stand',0,d*.22,180) ] },
+  { name:'dining scene', items:(w,d)=>[
+    P_('dining table',0,d*.5), P_('chair',-.5,d*.5-.8), P_('chair',.5,d*.5-.8),
+    P_('chair',-.5,d*.5+.8,180), P_('chair',.5,d*.5+.8,180), P_('sideboard',0,d*.85) ] },
+  { name:'bedroom', items:(w,d)=>[
+    P_('double bed',0,d*.7), P_('side table',-w*.22,d*.75), P_('side table',w*.22,d*.75),
+    P_('wide wardrobe',-w*.5,d*.85), P_('dressing table',w*.45,d*.6,-90),
+    P_('cot mattress',w*.4,d*.25) ] },
+  { name:'office', items:(w,d)=>[
+    P_('desk',0,d*.55,180), P_('office chair',0,d*.68,180),
+    P_('chair',-.7,d*.38,20), P_('chair',.7,d*.38,-20),
+    P_('filing cabinet',w*.4,d*.75), P_('bookshelf',-w*.4,d*.8) ] },
+  { name:'classroom', items:(w,d)=>[
+    P_('blackboard',0,d*.9), P_('teacher desk',0,d*.75,180),
+    P_('school desk',-w*.4,d*.45), P_('school desk',0,d*.45), P_('school desk',w*.4,d*.45),
+    P_('school desk',-w*.4,d*.25), P_('school desk',0,d*.25), P_('school desk',w*.4,d*.25) ] },
+  { name:'street corner', items:(w,d)=>[
+    P_('lamp post',-w*.5,d*.7), P_('park bench',-w*.15,d*.65),
+    P_('picket fence',w*.35,d*.8), P_('picket fence',w*.78,d*.8),
+    P_('tree',w*.55,d*.55), P_('trash bin',-w*.62,d*.5), P_('fire hydrant',w*.15,d*.3) ] },
+  { name:'park', items:(w,d)=>[
+    P_('large tree',-w*.55,d*.7), P_('tree',w*.5,d*.75), P_('bush',-w*.2,d*.8),
+    P_('park bench',0,d*.5), P_('round fountain',w*.15,d*.72),
+    P_('flower bed',-w*.5,d*.4), P_('lamp post',w*.65,d*.45) ] },
+  { name:'forest', items:(w,d)=>[
+    P_('large tree',-w*.6,d*.75), P_('pine tree',-w*.25,d*.85), P_('tree',w*.15,d*.8),
+    P_('pine tree',w*.55,d*.7), P_('bare tree',-w*.45,d*.5), P_('bush',w*.3,d*.5),
+    P_('log',-w*.1,d*.35,25), P_('tree stump',w*.5,d*.35) ] },
+  { name:'train station', items:(w,d)=>[
+    P_('station platform',0,d*.35), P_('rail track section',0,d*.72),
+    P_('train carriage',0,d*.72,0,1,{elev:.08}), P_('station clock',-w*.55,d*.35,0,1,{elev:.9}),
+    P_('park bench',-w*.25,d*.35,0,1,{elev:.9}), P_('luggage trolley',w*.3,d*.35,30,1,{elev:.9}),
+    P_('ticket booth',w*.65,d*.2) ] },
+  { name:'road', items:(w,d)=>[
+    P_('road section',0,d*.5,90,1.4), P_('crosswalk section',0,d*.5,90),
+    P_('sidewalk section',0,d*.18,90,1.4), P_('kerb section',0,d*.3,90,1.4),
+    P_('traffic light',-w*.45,d*.3), P_('street sign',w*.45,d*.3),
+    P_('car',w*.3,d*.62,90) ] },
+  // ---- fold: everything below appears via "load more" ----
+  { name:'deep forest clearing', items:(w,d)=>[
+    P_('large tree',-w*.7,d*.8), P_('large tree',w*.7,d*.8), P_('willow',0,d*.9),
+    P_('pine tree',-w*.4,d*.6), P_('pine tree',w*.45,d*.62), P_('campfire',0,d*.45),
+    P_('log',-w*.15,d*.35,60), P_('log',w*.18,d*.38,-45), P_('bush',-w*.6,d*.4) ] },
+  { name:'village square', items:(w,d)=>[
+    P_('well',0,d*.6), P_('hut',-w*.6,d*.85), P_('market stall',w*.5,d*.75),
+    P_('bullock cart',-w*.3,d*.4,30), P_('water pot stack',w*.2,d*.5),
+    P_('tree',w*.7,d*.5), P_('hay bale',-w*.55,d*.5) ] },
+  { name:'village home', items:(w,d)=>[
+    P_('charpai',-w*.3,d*.6,15), P_('clay oven chulha',w*.4,d*.75),
+    P_('water pot stack',w*.25,d*.72), P_('grinding stone',w*.5,d*.55),
+    P_('floor mat seating',0,d*.4), P_('sack pile',-w*.55,d*.8), P_('hut',0,d*.92) ] },
+  { name:'courtyard', items:(w,d)=>[
+    P_('tiered fountain',0,d*.55), P_('column',-w*.55,d*.8), P_('column',w*.55,d*.8),
+    P_('planter box',-w*.3,d*.75), P_('planter box',w*.3,d*.75),
+    P_('garden arch',0,d*.9), P_('park bench',-w*.4,d*.4,25) ] },
+  { name:'garden', items:(w,d)=>[
+    P_('long hedge',0,d*.88), P_('trellis',-w*.5,d*.8), P_('garden arch',w*.4,d*.75),
+    P_('flower bed',-w*.25,d*.6), P_('flower bed',w*.2,d*.55,90),
+    P_('birdbath',0,d*.68), P_('wheelbarrow',-w*.55,d*.4,40), P_('topiary ball',w*.6,d*.5) ] },
+  { name:'playground', items:(w,d)=>[
+    P_('swing',-w*.4,d*.7), P_('slide',w*.35,d*.7,-30), P_('seesaw',0,d*.45),
+    P_('sandbox',w*.55,d*.4), P_('merry-go-round small',-w*.5,d*.4),
+    P_('park bench',0,d*.85) ] },
+  { name:'throne room', items:(w,d)=>[
+    P_('platform 2\u00D72m h0.4',0,d*.75), P_('throne',0,d*.75,0,1,{elev:.4}),
+    P_('colonnade',-w*.55,d*.5,90), P_('colonnade',w*.55,d*.5,90),
+    P_('archway',0,d*.95), P_('torch stand',-w*.3,d*.65), P_('torch stand',w*.3,d*.65) ] },
+  { name:'palace hall', items:(w,d)=>[
+    P_('column',-w*.6,d*.3), P_('column',w*.6,d*.3), P_('column',-w*.6,d*.7),
+    P_('column',w*.6,d*.7), P_('long banquet table',0,d*.5),
+    P_('candelabra',-w*.3,d*.5,0,1,{elev:.76}), P_('candelabra',w*.3,d*.5,0,1,{elev:.76}),
+    P_('throne',0,d*.88) ] },
+  { name:'courtroom', items:(w,d)=>[
+    P_('platform 3\u00D72m h0.4',0,d*.85), P_('desk',0,d*.85,180,1,{elev:.4}),
+    P_('chair',0,d*.92,180,1,{elev:.4}), P_('lectern',0,d*.55),
+    P_('bench',-w*.45,d*.3), P_('bench',w*.45,d*.3),
+    P_('bench',-w*.45,d*.15), P_('bench',w*.45,d*.15) ] },
+  { name:'church', items:(w,d)=>[
+    P_('altar',0,d*.88), P_('pulpit',-w*.4,d*.8), P_('cross marker',0,d*.95,0,1.6),
+    P_('church pew',0,d*.55), P_('church pew',0,d*.4), P_('church pew',0,d*.25),
+    P_('candelabra',w*.35,d*.85) ] },
+  { name:'temple shrine', items:(w,d)=>[
+    P_('shrine',0,d*.8), P_('column',-w*.45,d*.75), P_('column',w*.45,d*.75),
+    P_('torch stand',-w*.25,d*.6), P_('torch stand',w*.25,d*.6),
+    P_('floor mat seating',0,d*.45), P_('water pot stack',w*.55,d*.65) ] },
+  { name:'graveyard', items:(w,d)=>[
+    P_('gravestone',-w*.5,d*.6,10), P_('gravestone',-w*.2,d*.7,-5),
+    P_('gravestone',w*.15,d*.62,8), P_('cross marker',w*.45,d*.72),
+    P_('bare tree',-w*.65,d*.8), P_('iron fence',0,d*.92), P_('bench',w*.5,d*.35) ] },
+  { name:'campsite', items:(w,d)=>[
+    P_('tent',-w*.35,d*.7,20), P_('teepee',w*.4,d*.75), P_('campfire',0,d*.5),
+    P_('log',-w*.12,d*.42,80), P_('log',w*.15,d*.42,-70),
+    P_('pine tree',-w*.65,d*.85), P_('pine tree',w*.68,d*.85) ] },
+  { name:'riverbank', items:(w,d)=>[
+    P_('boat',0,d*.75,15), P_('canoe',w*.4,d*.8,-20), P_('willow',-w*.55,d*.8),
+    P_('log',-w*.25,d*.5,45), P_('bush',w*.6,d*.55), P_('tree stump',-w*.6,d*.45) ] },
+  { name:'harbor dock', items:(w,d)=>[
+    P_('platform 4\u00D72m h0.4',0,d*.65), P_('boat',-w*.35,d*.85,90),
+    P_('barrel stack',w*.3,d*.65,0,1,{elev:.4}), P_('crate stack',-w*.2,d*.65,0,1,{elev:.4}),
+    P_('rope coil',w*.1,d*.62,0,1,{elev:.4}), P_('lamp post',w*.55,d*.5) ] },
+  { name:'market', items:(w,d)=>[
+    P_('market stall',-w*.45,d*.7), P_('market stall',w*.45,d*.7,0),
+    P_('handcart',0,d*.5,20), P_('crate stack',-w*.2,d*.6), P_('sack pile',w*.15,d*.58),
+    P_('barrel',-w*.6,d*.5), P_('water pot stack',w*.6,d*.5) ] },
+  { name:'restaurant', items:(w,d)=>[
+    P_('round cafe table',-w*.4,d*.55), P_('chair',-w*.4,d*.47), P_('chair',-w*.4,d*.63,180),
+    P_('round cafe table',w*.35,d*.5), P_('chair',w*.35,d*.42), P_('chair',w*.35,d*.58,180),
+    P_('bar counter',0,d*.85), P_('bar stool',-.5,d*.75), P_('bar stool',.5,d*.75) ] },
+  { name:'cafe terrace', items:(w,d)=>[
+    P_('round cafe table',-w*.3,d*.5), P_('deck chair',-w*.3,d*.4,10),
+    P_('round cafe table',w*.3,d*.55), P_('chair',w*.3,d*.46),
+    P_('potted plant',-w*.55,d*.6), P_('potted plant',w*.55,d*.65),
+    P_('half curtain',0,d*.85), P_('lamp post',0,d*.9) ] },
+  { name:'bar', items:(w,d)=>[
+    P_('bar counter',0,d*.8), P_('bar stool',-.8,d*.68), P_('bar stool',0,d*.68),
+    P_('bar stool',.8,d*.68), P_('low bookcase',w*.5,d*.9), P_('round cafe table',-w*.45,d*.4),
+    P_('stool',-w*.45,d*.3), P_('stool',-w*.38,d*.5) ] },
+  { name:'kitchen', items:(w,d)=>[
+    P_('kitchen counter',-w*.3,d*.85), P_('stove unit',w*.1,d*.85), P_('fridge',w*.45,d*.85),
+    P_('sink unit',-w*.6,d*.85), P_('dining table',0,d*.45,0,.8),
+    P_('chair',-.5,d*.45-.7,0,.9), P_('chair',.5,d*.45-.7,0,.9) ] },
+  { name:'kids bedroom', items:(w,d)=>[
+    P_('bunk bed',-w*.4,d*.75), P_('crib',w*.4,d*.75), P_('rocking horse',0,d*.45,-30),
+    P_('low bookcase',w*.55,d*.5,90), P_('floor cushion',-w*.15,d*.35),
+    P_('high chair',w*.15,d*.3) ] },
+  { name:'hospital ward', items:(w,d)=>[
+    P_('single bed',-w*.4,d*.7), P_('single bed',w*.4,d*.7),
+    P_('folding screen',0,d*.7), P_('side table',-w*.18,d*.75), P_('side table',w*.62,d*.75),
+    P_('chair',-w*.55,d*.5), P_('water cooler',w*.6,d*.35) ] },
+  { name:'waiting room', items:(w,d)=>[
+    P_('bench',-w*.35,d*.7), P_('bench',w*.35,d*.7), P_('bench',-w*.35,d*.5),
+    P_('water cooler',w*.6,d*.8), P_('notice board',0,d*.9),
+    P_('potted plant',-w*.6,d*.8), P_('side table',0,d*.55) ] },
+  { name:'library', items:(w,d)=>[
+    P_('bookshelf',-w*.55,d*.85), P_('bookshelf',0,d*.85), P_('bookshelf',w*.55,d*.85),
+    P_('long banquet table',0,d*.5), P_('chair',-.8,d*.42), P_('chair',.8,d*.42),
+    P_('bookcase ladder',-w*.4,d*.78,15), P_('globe on stand',w*.5,d*.55) ] },
+  { name:'study', items:(w,d)=>[
+    P_('writing desk',0,d*.7,180), P_('chair',0,d*.8,180), P_('bookshelf',-w*.45,d*.85),
+    P_('armchair',w*.4,d*.5,-40), P_('side table',w*.55,d*.6),
+    P_('grandfather clock',-w*.6,d*.7), P_('globe on stand',-w*.25,d*.55) ] },
+  { name:'attic', items:(w,d)=>[
+    P_('chest trunk',-w*.4,d*.7,15), P_('crate stack',w*.35,d*.75),
+    P_('standing mirror',w*.55,d*.6,-25), P_('rocking chair',-w*.15,d*.5,30),
+    P_('coat stand',w*.15,d*.45), P_('suitcase pile',-w*.6,d*.5), P_('birdcage on stand',0,d*.75) ] },
+  { name:'prison cell', items:(w,d)=>[
+    P_('cot mattress',-w*.35,d*.75,90), P_('iron fence',0,d*.35,0,1.4),
+    P_('stool',w*.2,d*.6), P_('bench',w*.45,d*.75,90), P_('trash bin',-w*.55,d*.55) ] },
+  { name:'rehearsal room', items:(w,d)=>[
+    P_('props table',-w*.5,d*.85), P_('chair',-w*.2,d*.3,10), P_('chair',0,d*.3),
+    P_('chair',w*.2,d*.3,-10), P_('piano',w*.5,d*.8,-90), P_('piano stool',w*.38,d*.8,-90),
+    P_('ghost light',0,d*.6), P_('costume rail',-w*.55,d*.6,90) ] },
+  { name:'band stage', items:(w,d)=>[
+    P_('drum kit',0,d*.75), P_('platform 2\u00D72m h0.2',0,d*.75),
+    P_('speaker stack',-w*.55,d*.6), P_('speaker stack',w*.55,d*.6),
+    P_('mic stand',0,d*.35), P_('mic stand',-w*.3,d*.4), P_('keyboard on stand',w*.3,d*.5,-20),
+    P_('guitar amp',-w*.4,d*.6) ] },
+  { name:'orchestra setup', items:(w,d)=>[
+    P_('conductor podium',0,d*.3), P_('music stand',0,d*.38),
+    P_('orchestra chair',-w*.3,d*.5,20), P_('music stand',-w*.3,d*.44,20),
+    P_('orchestra chair',w*.3,d*.5,-20), P_('music stand',w*.3,d*.44,-20),
+    P_('orchestra chair',-w*.15,d*.6,10), P_('orchestra chair',w*.15,d*.6,-10),
+    P_('harp',w*.5,d*.65,-30), P_('grand piano',-w*.55,d*.7,40) ] },
+  { name:'cabaret floor', items:(w,d)=>[
+    P_('round platform r1 h0.3',0,d*.7), P_('round cafe table',-w*.4,d*.35),
+    P_('chair',-w*.4,d*.27,0,.9), P_('round cafe table',w*.4,d*.35),
+    P_('chair',w*.4,d*.27,0,.9), P_('full stage drape',0,d*.95),
+    P_('mic stand',0,d*.7,0,1,{elev:.3}) ] },
+  { name:'wedding mandap', items:(w,d)=>[
+    P_('platform 3\u00D72m h0.2',0,d*.7), P_('column',-w*.25,d*.62,0,.7,{elev:.2}),
+    P_('column',w*.25,d*.62,0,.7,{elev:.2}), P_('column',-w*.25,d*.78,0,.7,{elev:.2}),
+    P_('column',w*.25,d*.78,0,.7,{elev:.2}), P_('floor mat seating',0,d*.7,0,1,{elev:.2}),
+    P_('flower bed',-w*.5,d*.5), P_('flower bed',w*.5,d*.5), P_('brazier',0,d*.55,0,.8,{elev:.2}) ] },
+  { name:'banquet', items:(w,d)=>[
+    P_('long banquet table',0,d*.6), P_('chair',-1.1,d*.6-.75), P_('chair',0,d*.6-.75),
+    P_('chair',1.1,d*.6-.75), P_('chair',-1.1,d*.6+.75,180), P_('chair',0,d*.6+.75,180),
+    P_('chair',1.1,d*.6+.75,180), P_('candelabra',0,d*.6,0,.8,{elev:.76}),
+    P_('sideboard',0,d*.9) ] },
+  { name:'bus stop', items:(w,d)=>[
+    P_('bus stop shelter',0,d*.7), P_('sidewalk section',0,d*.55,0,1.2),
+    P_('kerb section',0,d*.4), P_('road section',0,d*.2,0,1.2),
+    P_('trash bin',w*.35,d*.68), P_('street sign',-w*.35,d*.66), P_('lamp post',w*.6,d*.6) ] },
+  { name:'city street', items:(w,d)=>[
+    P_('long wall',0,d*.92), P_('phone booth',-w*.6,d*.75), P_('mailbox',-w*.35,d*.72),
+    P_('lamp post',w*.3,d*.72), P_('dumpster',w*.6,d*.78,15),
+    P_('sidewalk section',0,d*.6,0,1.6), P_('fire escape stair',w*.05,d*.88) ] },
+  { name:'rooftop', items:(w,d)=>[
+    P_('rooftop parapet',0,d*.9), P_('washing line',-w*.35,d*.6),
+    P_('deck chair',w*.3,d*.5,-25), P_('crate',w*.55,d*.65), P_('potted plant',-w*.6,d*.7),
+    P_('trash bin',w*.62,d*.4) ] },
+  { name:'warehouse', items:(w,d)=>[
+    P_('crate stack',-w*.5,d*.8), P_('crate stack',-w*.25,d*.82), P_('barrel stack',w*.35,d*.78),
+    P_('road case',w*.6,d*.6,20), P_('scaffold tower',-w*.55,d*.5),
+    P_('trestle table',0,d*.45), P_('straight ladder',w*.15,d*.85,0,1) ] },
+  { name:'ruins', items:(w,d)=>[
+    P_('ruined wall',0,d*.85), P_('broken column',-w*.45,d*.6), P_('broken column',w*.35,d*.55),
+    P_('column',w*.6,d*.75), P_('bare tree',-w*.65,d*.75), P_('crate',-w*.2,d*.4,30),
+    P_('obelisk',w*.1,d*.68,0,.7) ] },
+  { name:'school assembly', items:(w,d)=>[
+    P_('platform 3\u00D72m h0.4',0,d*.8), P_('lectern',0,d*.78,0,1,{elev:.4}),
+    P_('projector screen on stand',w*.3,d*.88,0,1,{elev:.4}),
+    P_('bench',-w*.4,d*.45), P_('bench',w*.4,d*.45), P_('bench',-w*.4,d*.3),
+    P_('bench',w*.4,d*.3), P_('flag pole',-w*.55,d*.85) ] },
+  { name:'press conference', items:(w,d)=>[
+    P_('long banquet table',0,d*.7), P_('chair',-.9,d*.78,180), P_('chair',0,d*.78,180),
+    P_('chair',.9,d*.78,180), P_('mic stand',-.9,d*.68,0,.7,{elev:.76}),
+    P_('mic stand',0,d*.68,0,.7,{elev:.76}), P_('mic stand',.9,d*.68,0,.7,{elev:.76}),
+    P_('full stage drape',0,d*.92), P_('chair',-w*.35,d*.35,15), P_('chair',w*.35,d*.35,-15) ] }
+];
+
+// -------------------- STATE --------------------
+let pieces = [];
+let performers = [ { id:1, x:0, z:5 }, { id:2, x:-2.4, z:4.2 } ];
+let nextPieceId = 1, nextPerfId = 3, nextGroupId = 1;
+let selectedPiece = null;        // primary selection
+let multiSel = new Set();        // full selection (includes primary)
+let cam = { pitch: 90, target: 90, scale: 1, cy: 0 };
+let drag = null;
+let panelOpen = false;
+let searchQuery = '';
+let startersShown = 10;
+
+function catalogByName(name) { return CATALOG.find(k => k.name === name); }
+
+function addPiece(name, x, z, rot=0, scale=1, opts={}) {
+  const P = { id: nextPieceId++, name, x, z, rot, scale,
+    sx: opts.sx || 1, sz: opts.sz || 1,
+    elev: opts.elev || 0, color: opts.color || '#ffffff',
+    mode: opts.mode || 'line', group: null };
+  pieces.push(P);
+  setSelection(P.id);
+  return P;
+}
+
+// selection helpers: selecting a grouped piece pulls in its whole group
+function setSelection(id, additive=false) {
+  if (!additive) multiSel.clear();
+  if (id === null) { selectedPiece = null; return; }
+  selectedPiece = id;
+  const P = pieces.find(x => x.id === id);
+  if (P && P.group !== null) {
+    for (const q of pieces) if (q.group === P.group) multiSel.add(q.id);
+  } else {
+    if (additive && multiSel.has(id)) multiSel.delete(id);
+    else multiSel.add(id);
+  }
+}
+function selectionPieces() {
+  return pieces.filter(p => multiSel.has(p.id));
+}
+
+// -------------------- PROJECTION MATH --------------------
+function camUpdate() {
+  cam.pitch = lerp(cam.pitch, cam.target, 0.18);
+  cam.scale = min(width * 0.62 / CONFIG.stageWidth,
+                  height * 0.58 / CONFIG.stageDepth);
+  const sp = sin(radians(cam.pitch));
+  cam.cy = lerp(height * 0.68, height * 0.50, sp);
+}
+function project(x, y, z) {
+  const p = radians(cam.pitch);
+  const sp = sin(p), cp = cos(p);
+  const persp = 1 - (z / CONFIG.stageDepth) * CONFIG.perspective * cp;
+  const sx = width / 2 + x * cam.scale * persp;
+  const sy = cam.cy
+           - (z - CONFIG.stageDepth * 0.45) * cam.scale * sp * 0.92
+           - y * cam.scale * cp * persp;
+  return { x: sx, y: sy };
+}
+function floorCircle(cx, cz, r, n) {
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const a = TWO_PI * i / n;
+    pts.push(project(cx + cos(a) * r, 0, cz + sin(a) * r));
+  }
+  return pts;
+}
+function poly(pts) {
+  beginShape();
+  for (const p of pts) vertex(p.x, p.y);
+  endShape(CLOSE);
+}
+
+// -------------------- SKETCH --------------------
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  buildPanel();
+  buildAbout();
+  buildFloatBar();
+  document.getElementById('footerCredit').innerHTML = linkifyCredit(CONFIG.footerText);
+  document.getElementById('settingsBtn').onclick = togglePanel;
+  document.getElementById('exportBtn').onclick = exportSheet;
+  document.getElementById('saveBtn').onclick = saveScene;
+  const lf = document.getElementById('loadFile');
+  document.getElementById('loadBtn').onclick = () => lf.click();
+  lf.onchange = () => loadScene(lf);
+}
+function windowResized() { resizeCanvas(windowWidth, windowHeight); }
+
+function draw() {
+  camUpdate();
+  drawScene();
+  drawHUD();
+  updateFloatBar();
+}
+
+function drawScene() {
+  background(0);
+  const p = radians(cam.pitch);
+  const sp = sin(p), cp = cos(p);
+
+  drawBackdrop(cp);
+  drawStage(sp);
+
+  const sorted = [...pieces].sort((a, b) => b.z - a.z);
+  for (const P of sorted) drawPiece(P);
+  for (const A of performers) drawPerformer(A);
+}
+
+// -------------------- STAGE & BACKDROP --------------------
+function drawStage(sp) {
+  const W = CONFIG.stageWidth / 2, D = CONFIG.stageDepth;
+  const c = [ project(-W,0,0), project(W,0,0), project(W,0,D), project(-W,0,D) ];
+  noFill(); stroke(255, 200); strokeWeight(1.4);
+  poly(c);
+
+  stroke(255, 55); strokeWeight(1);
+  drawingContext.setLineDash([5, 6]);
+  const c1 = project(0,0,0), c2 = project(0,0,D);
+  line(c1.x, c1.y, c2.x, c2.y);
+  drawingContext.setLineDash([]);
+
+  stroke(255, 90);
+  for (const t of [-W, W]) {
+    const a = project(t, 0, 0), b = project(t, 0, -0.4);
+    line(a.x, a.y, b.x, b.y);
+  }
+  if (CONFIG.showLabels && sp > 0.55) {
+    noStroke(); fill(255, 90);
+    textFont('DM Mono'); textSize(10); textAlign(CENTER);
+    const us = project(0, 0, D + 0.5), ds = project(0, 0, -0.9);
+    text('UPSTAGE', us.x, us.y);
+    text('DOWNSTAGE / AUDIENCE', ds.x, ds.y);
+  }
+}
+
+function drawBackdrop(cp) {
+  const BD = CONFIG.backdrop;
+  if (!BD.on) return;
+  const W = CONFIG.stageWidth / 2 + 1, z = CONFIG.stageDepth + 0.3;
+  const a = project(-W, 0, z), b = project(W, 0, z);
+  const c = project(W, BD.h, z), d = project(-W, BD.h, z);
+  const col = color(BD.color);
+  noStroke();
+  if (BD.mode === 'wash') {
+    fill(col);
+    quad(a.x,a.y, b.x,b.y, c.x,c.y, d.x,d.y);
+  } else if (BD.mode === 'gradient') {
+    const n = 18;
+    for (let i = 0; i < n; i++) {
+      const t0 = i/n, t1 = (i+1)/n, k = 1 - t0;
+      const p0 = project(-W, lerp(0, BD.h, t0), z), p1 = project(W, lerp(0, BD.h, t0), z);
+      const p2 = project(W, lerp(0, BD.h, t1), z), p3 = project(-W, lerp(0, BD.h, t1), z);
+      fill(red(col)*k, green(col)*k, blue(col)*k);
+      quad(p0.x,p0.y, p1.x,p1.y, p2.x,p2.y, p3.x,p3.y);
+    }
+  }
+  noFill(); stroke(255, 60); strokeWeight(1);
+  quad(a.x,a.y, b.x,b.y, c.x,c.y, d.x,d.y);
+}
+
+// -------------------- PIECE RENDERING --------------------
+// local -> world with per-axis stretch (sx, sz), rotation, uniform scale,
+// and elevation. height uses uniform scale only.
+function tfPoint(P, lx, ly, lz) {
+  const r = radians(P.rot), s = P.scale;
+  const ex = lx * (P.sx || 1), ez = lz * (P.sz || 1);
+  const rx = (ex*cos(r) - ez*sin(r)) * s;
+  const rz = (ex*sin(r) + ez*cos(r)) * s;
+  return [P.x + rx, P.elev + ly*s, P.z + rz];
+}
+function boxCorners(P, bx) {
+  const cs = [
+    [bx.x - bx.w/2, bx.z - bx.d/2], [bx.x + bx.w/2, bx.z - bx.d/2],
+    [bx.x + bx.w/2, bx.z + bx.d/2], [bx.x - bx.w/2, bx.z + bx.d/2]
+  ];
+  const bot = cs.map(([lx,lz]) => { const [x,y,z] = tfPoint(P, lx, bx.y0, lz); return project(x,y,z); });
+  const top = cs.map(([lx,lz]) => { const [x,y,z] = tfPoint(P, lx, bx.y1, lz); return project(x,y,z); });
+  return { bot, top };
+}
+function cylRings(P, cy, n=10) {
+  const bot = [], top = [];
+  for (let i = 0; i < n; i++) {
+    const a = TWO_PI * i / n;
+    const lx = cy.x + cos(a)*cy.r, lz = cy.z + sin(a)*cy.r;
+    let [x,y,z] = tfPoint(P, lx, cy.y0, lz); bot.push(project(x,y,z));
+    [x,y,z] = tfPoint(P, lx, cy.y1, lz); top.push(project(x,y,z));
+  }
+  return { bot, top };
+}
+function drawFillPrism(bot, top, col) {
+  const r = red(col), g = green(col), b = blue(col);
+  const n = bot.length;
+  const faces = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    faces.push({ pts:[bot[i], bot[j], top[j], top[i]],
+      y:(bot[i].y + bot[j].y + top[i].y + top[j].y) / 4 });
+  }
+  faces.sort((a, b2) => a.y - b2.y);
+  noStroke();
+  for (const f of faces) {
+    fill(r*0.55, g*0.55, b*0.55, 235);
+    quad(f.pts[0].x,f.pts[0].y, f.pts[1].x,f.pts[1].y,
+         f.pts[2].x,f.pts[2].y, f.pts[3].x,f.pts[3].y);
+  }
+  fill(r*0.95, g*0.95, b*0.95, 240);
+  poly(top);
+  stroke(r, g, b, 255); strokeWeight(1); noFill();
+  poly(top); poly(bot);
+}
+function drawLinePrism(bot, top, col, wSel) {
+  stroke(col); strokeWeight(wSel);
+  noFill();
+  poly(bot); poly(top);
+  const step = bot.length > 6 ? 2 : 1;
+  for (let i = 0; i < bot.length; i += step) {
+    line(bot[i].x, bot[i].y, top[i].x, top[i].y);
+  }
+}
+function drawPiece(P) {
+  const def = catalogByName(P.name);
+  if (!def) return;
+  const inSel = multiSel.has(P.id);
+  const col = color(P.color);
+  const wSel = inSel ? 1.6 : 1.2;
+
+  for (const g of def.geo) {
+    if (g.t === 'box') {
+      const { bot, top } = boxCorners(P, g);
+      if (P.mode === 'fill') drawFillPrism(bot, top, col);
+      else drawLinePrism(bot, top, col, wSel);
+    } else if (g.t === 'cyl') {
+      const { bot, top } = cylRings(P, g);
+      if (P.mode === 'fill') drawFillPrism(bot, top, col);
+      else drawLinePrism(bot, top, col, wSel);
+    } else if (g.t === 'leg') {
+      const [x0,y0,z0] = tfPoint(P, g.x, g.y0, g.z);
+      const [x1,y1,z1] = tfPoint(P, g.x, g.y1, g.z);
+      const a = project(x0,y0,z0), b = project(x1,y1,z1);
+      stroke(col); strokeWeight(wSel);
+      line(a.x, a.y, b.x, b.y);
+    } else if (g.t === 'line') {
+      const [x0,y0,z0] = tfPoint(P, g.ax, g.ay, g.az);
+      const [x1,y1,z1] = tfPoint(P, g.bx, g.by, g.bz);
+      const a = project(x0,y0,z0), b = project(x1,y1,z1);
+      stroke(col); strokeWeight(wSel);
+      line(a.x, a.y, b.x, b.y);
+    }
+  }
+
+  if (inSel) {
+    stroke(P.group !== null ? color(160, 200, 255, 200) : color(255, 190));
+    strokeWeight(1);
+    drawingContext.setLineDash([3, 3]);
+    const c = project(P.x, 0, P.z);
+    noFill();
+    ellipse(c.x, c.y, 34, 34);
+    drawingContext.setLineDash([]);
+    if (CONFIG.showLabels && P.id === selectedPiece) {
+      noStroke(); fill(255, 150);
+      textFont('DM Mono'); textSize(9); textAlign(CENTER);
+      text(P.name + (P.group !== null ? ' (grouped)' : ''), c.x, c.y + 26);
+    }
+  }
+}
+
+// -------------------- PERFORMERS --------------------
+function drawPerformer(A) {
+  noFill(); stroke(255, 160); strokeWeight(1.3);
+  poly(floorCircle(A.x, A.z, 0.28, 20));
+  const hip = project(A.x, 0.85, A.z);
+  const sh  = project(A.x, 1.42, A.z);
+  const hd  = project(A.x, 1.58, A.z);
+  const fL  = project(A.x - 0.16, 0, A.z);
+  const fR  = project(A.x + 0.16, 0, A.z);
+  const hL  = project(A.x - 0.30, 1.05, A.z);
+  const hR  = project(A.x + 0.30, 1.05, A.z);
+  stroke(255, 210); strokeWeight(1.4);
+  line(fL.x, fL.y, hip.x, hip.y);
+  line(fR.x, fR.y, hip.x, hip.y);
+  line(hip.x, hip.y, sh.x, sh.y);
+  line(sh.x, sh.y, hL.x, hL.y);
+  line(sh.x, sh.y, hR.x, hR.y);
+  noFill();
+  const headR = dist(sh.x, sh.y, hd.x, hd.y) * 1.7 + 3;
+  ellipse(hd.x, hd.y - headR * 0.4, headR, headR);
+}
+
+// -------------------- HUD --------------------
+function drawHUD() {
+  const mobile = width < 640;
+  const stripH = mobile ? 46 : 54;
+  noStroke();
+  fill(255, 14);
+  rect(0, height - stripH, width, stripH);
+  stroke(255, 30); strokeWeight(1);
+  line(0, height - stripH, width, height - stripH);
+
+  noStroke(); textFont('DM Mono'); textAlign(LEFT);
+  const mode = cam.pitch > 60 ? 'TOP VIEW' : cam.pitch < 30 ? 'AUDIENCE VIEW' : 'TILTING';
+  fill(255, 220); textSize(mobile ? 10 : 11);
+  text(mode + (multiSel.size > 1 ? '  \u00B7  ' + multiSel.size + ' selected' : ''),
+    14, height - (mobile ? 27 : 33));
+  fill(255, 170); textSize(mobile ? 9 : 11);
+  const hint = mobile
+    ? 'drag to tilt \u00B7 S settings \u00B7 shift-click multi-select \u00B7 R rotate \u00B7 delete'
+    : 'drag empty canvas \u2193 audience view \u00B7 \u2191 top view  |  search & place properties in settings  |  shift-click to multi-select \u00B7 group in ON STAGE \u00B7 R rotates \u00B7 delete removes  |  S settings';
+  text(hint, 14, height - (mobile ? 12 : 14));
+}
+
+// -------------------- INTERACTION --------------------
+function overCanvas(evt) {
+  return !evt || !evt.target || evt.target.tagName === 'CANVAS';
+}
+function mousePressed(evt) {
+  if (!overCanvas(evt)) return;
+  // read shift directly off the event; p5's keyIsDown can miss it when
+  // the window has lost key focus
+  const shift = (evt && evt.shiftKey) || keyIsDown(SHIFT);
+  for (const A of performers) {
+    const Pp = project(A.x, 0.85, A.z);
+    const F = project(A.x, 0, A.z);
+    if (dist(mouseX, mouseY, Pp.x, Pp.y) < 22 || dist(mouseX, mouseY, F.x, F.y) < 16) {
+      drag = { kind:'performer', id:A.id }; return;
+    }
+  }
+  const sorted = [...pieces].sort((a, b) => a.z - b.z);
+  for (const P of sorted) {
+    const c = project(P.x, 0.4 * P.scale + P.elev, P.z);
+    if (dist(mouseX, mouseY, c.x, c.y) < 30) {
+      setSelection(P.id, shift);
+      drag = { kind:'piece', id:P.id };
+      refreshPlacedList(); return;
+    }
+  }
+  if (!shift) { setSelection(null); refreshPlacedList(); }
+  drag = { kind:'cam' };
+}
+function mouseDragged(evt) {
+  if (!drag || !overCanvas(evt)) return;
+  const dxs = mouseX - pmouseX, dys = mouseY - pmouseY;
+  if (drag.kind === 'cam') {
+    cam.target = constrain(cam.target - dys * 0.35, CONFIG.pitchFront, CONFIG.pitchTop);
+    cam.pitch = cam.target;
+    return;
+  }
+  const p = radians(cam.pitch);
+  const dxw = dxs / cam.scale;
+  const dzw = -dys / (cam.scale * max(sin(p), 0.28));
+  const W = CONFIG.stageWidth / 2, D = CONFIG.stageDepth;
+
+  if (drag.kind === 'piece') {
+    // move the whole selection together (covers groups automatically)
+    const targets = multiSel.has(drag.id) ? selectionPieces()
+      : pieces.filter(x => x.id === drag.id);
+    for (const P of targets) {
+      P.x = constrain(P.x + dxw, -W - 2, W + 2);
+      P.z = constrain(P.z + dzw, -1, D + 1);
+    }
+  } else if (drag.kind === 'performer') {
+    const A = performers.find(a => a.id === drag.id); if (!A) return;
+    A.x = constrain(A.x + dxw, -W, W);
+    A.z = constrain(A.z + dzw, 0, D);
+  }
+}
+function mouseReleased() { drag = null; }
+
+function rotateSelection() {
+  const sel = selectionPieces();
+  if (!sel.length) return;
+  if (sel.length === 1) {
+    sel[0].rot = (sel[0].rot + 45) % 360;
+  } else {
+    // rotate the whole selection 45° around its centroid
+    const cx = sel.reduce((s,p)=>s+p.x,0)/sel.length;
+    const cz = sel.reduce((s,p)=>s+p.z,0)/sel.length;
+    const a = radians(45);
+    for (const P of sel) {
+      const dx = P.x - cx, dz = P.z - cz;
+      P.x = cx + dx*cos(a) - dz*sin(a);
+      P.z = cz + dx*sin(a) + dz*cos(a);
+      P.rot = (P.rot + 45) % 360;
+    }
+  }
+  refreshDetail();
+}
+
+function keyPressed() {
+  if (document.activeElement &&
+      ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  if (key === 's' || key === 'S') togglePanel();
+  else if (key === 't' || key === 'T') cam.target = CONFIG.pitchTop;
+  else if (key === 'f' || key === 'F') cam.target = CONFIG.pitchFront;
+  else if (key === 'r' || key === 'R') rotateSelection();
+  else if (keyCode === DELETE || keyCode === BACKSPACE) {
+    if (multiSel.size) {
+      pieces = pieces.filter(x => !multiSel.has(x.id));
+      setSelection(null);
+      refreshPlacedList();
+      return false;
+    }
+  }
+}
+
+// -------------------- GROUPING --------------------
+function groupSelection() {
+  const sel = selectionPieces();
+  if (sel.length < 2) return;
+  const gid = nextGroupId++;
+  for (const P of sel) P.group = gid;
+  refreshPlacedList();
+}
+function ungroupSelection() {
+  const sel = selectionPieces();
+  for (const P of sel) P.group = null;
+  refreshPlacedList();
+}
+
+// -------------------- FLOATING QUICK BAR --------------------
+// appears next to the selected piece on the canvas: line/fill toggle,
+// color picker, and group/ungroup when it applies. edits apply to the
+// whole current selection.
+let floatBar, fbLine, fbFill, fbColor, fbGroup, fbUngroup;
+let fbSig = null; // selection signature, so the color input isn't reset mid-drag
+
+function buildFloatBar() {
+  floatBar = document.getElementById('floatBar');
+  fbLine = document.createElement('button');
+  fbLine.textContent = 'line';
+  fbLine.onclick = () => { for (const q of selectionPieces()) q.mode = 'line';
+    fbSig = null; refreshPlacedList(); };
+  fbFill = document.createElement('button');
+  fbFill.textContent = 'fill';
+  fbFill.onclick = () => { for (const q of selectionPieces()) q.mode = 'fill';
+    fbSig = null; refreshPlacedList(); };
+  fbColor = document.createElement('input');
+  fbColor.type = 'color';
+  fbColor.oninput = () => { for (const q of selectionPieces()) q.color = fbColor.value; };
+  fbColor.onchange = () => refreshPlacedList();
+  fbGroup = document.createElement('button');
+  fbGroup.textContent = 'group';
+  fbGroup.onclick = () => { groupSelection(); fbSig = null; };
+  fbUngroup = document.createElement('button');
+  fbUngroup.textContent = 'ungroup';
+  fbUngroup.onclick = () => { ungroupSelection(); fbSig = null; };
+  floatBar.append(fbLine, fbFill, fbColor, fbGroup, fbUngroup);
+}
+
+function updateFloatBar() {
+  if (!floatBar) return;
+  const P = pieces.find(x => x.id === selectedPiece);
+  if (!P) { floatBar.classList.remove('show'); fbSig = null; return; }
+  floatBar.classList.add('show');
+
+  // reposition every frame so it follows the piece and the camera
+  const c = project(P.x, 0, P.z);
+  const bw = floatBar.offsetWidth || 180, bh = floatBar.offsetHeight || 32;
+  const bx = constrain(c.x - bw / 2, 8, width - bw - 8);
+  const by = constrain(c.y - bh - 42, 8, height - bh - 60);
+  floatBar.style.left = bx + 'px';
+  floatBar.style.top = by + 'px';
+
+  // refresh contents only when the selection actually changes, so the
+  // native color picker stays open while dragging around the wheel
+  const sig = P.id + '|' + P.mode + '|' + multiSel.size + '|' + P.group;
+  if (sig !== fbSig) {
+    fbSig = sig;
+    fbLine.className = 'mode' + (P.mode === 'line' ? ' active' : '');
+    fbFill.className = 'mode' + (P.mode === 'fill' ? ' active' : '');
+    fbColor.value = P.color;
+    const grouped = P.group !== null;
+    fbGroup.style.display = (!grouped && multiSel.size >= 2) ? 'inline-block' : 'none';
+    fbUngroup.style.display = grouped ? 'inline-block' : 'none';
+  }
+}
+
+// -------------------- PANEL --------------------
+const $ = (tag, cls, parent, txt) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (txt !== undefined) e.textContent = txt;
+  if (parent) parent.appendChild(e);
+  return e;
+};
+let panelEl, catGridEl, placedListEl, detailEl, countEl, starterGridEl, starterMoreBtn;
+
+function slider(parent, label, mn, mx, step, get, set, fmt) {
+  const row = $('div', 'row', parent);
+  $('label', null, row, label);
+  const inp = $('input', null, row);
+  inp.type = 'range'; inp.min = mn; inp.max = mx; inp.step = step; inp.value = get();
+  const out = $('span', 'val', row, fmt ? fmt(get()) : get());
+  inp.addEventListener('input', () => {
+    set(parseFloat(inp.value));
+    out.textContent = fmt ? fmt(parseFloat(inp.value)) : inp.value;
+  });
+  return inp;
+}
+function togglePanel() {
+  panelOpen = !panelOpen;
+  panelEl.style.display = panelOpen ? 'block' : 'none';
+}
+
+function buildPanel() {
+  panelEl = document.getElementById('panel');
+  panelEl.innerHTML = '';
+
+  $('h1', null, panelEl, 'STAGE PLOT');
+  $('div', 'sub', panelEl, 'set design previz');
+
+  // VIEW
+  $('h2', null, panelEl, 'VIEW');
+  const vb = $('div', 'btnrow', panelEl);
+  const bt = $('button', null, vb, 'top');
+  const bf = $('button', null, vb, 'audience');
+  bt.onclick = () => cam.target = CONFIG.pitchTop;
+  bf.onclick = () => cam.target = CONFIG.pitchFront;
+  slider(panelEl, 'tilt', CONFIG.pitchFront, CONFIG.pitchTop, 1,
+    () => Math.round(cam.target), v => { cam.target = v; }, v => v + '\u00B0');
+  slider(panelEl, 'perspective', 0, 0.6, 0.01,
+    () => CONFIG.perspective, v => CONFIG.perspective = v, v => Number(v).toFixed(2));
+
+  // STAGE
+  $('h2', null, panelEl, 'STAGE');
+  slider(panelEl, 'width', 6, 24, 0.5,
+    () => CONFIG.stageWidth, v => CONFIG.stageWidth = v, v => v + 'm');
+  slider(panelEl, 'depth', 5, 20, 0.5,
+    () => CONFIG.stageDepth, v => CONFIG.stageDepth = v, v => v + 'm');
+
+  // BACKDROP
+  $('h2', null, panelEl, 'BACKDROP');
+  const bb = $('div', 'btnrow', panelEl);
+  const bOn = $('button', null, bb, CONFIG.backdrop.on ? 'backdrop: on' : 'backdrop: off');
+  bOn.onclick = () => { CONFIG.backdrop.on = !CONFIG.backdrop.on;
+    bOn.textContent = CONFIG.backdrop.on ? 'backdrop: on' : 'backdrop: off'; };
+  const bmrow = $('div', 'row', panelEl);
+  $('label', null, bmrow, 'mode');
+  const bsel = $('select', null, bmrow);
+  for (const o of ['wash','gradient'])
+    { const op = $('option', null, bsel, o); op.value = o; }
+  bsel.value = CONFIG.backdrop.mode;
+  bsel.onchange = () => CONFIG.backdrop.mode = bsel.value;
+  const bcrow = $('div', 'row', panelEl);
+  $('label', null, bcrow, 'color');
+  const bcin = $('input', null, bcrow); bcin.type = 'color'; bcin.value = CONFIG.backdrop.color;
+  bcin.oninput = () => CONFIG.backdrop.color = bcin.value;
+
+  // STARTER SCENES (collapsible: 10, then load more)
+  $('h2', null, panelEl, 'STARTER SCENES');
+  starterGridEl = $('div', 'modegrid', panelEl);
+  starterMoreBtn = $('button', 'wide', panelEl, '');
+  starterMoreBtn.onclick = () => {
+    startersShown = Math.min(startersShown + 10, STARTERS.length);
+    renderStarters();
+  };
+  renderStarters();
+  $('div', 'hint', panelEl,
+    'a starter replaces the current set with a small arrangement you can pull apart and rebuild. it scales to your stage size.');
+
+  // SCENE
+  $('h2', null, panelEl, 'SCENE');
+  const pb = $('div', 'btnrow', panelEl);
+  const ex = $('button', null, pb, 'export image');
+  ex.onclick = exportSheet;
+  const pb2 = $('div', 'btnrow', panelEl);
+  const sv = $('button', null, pb2, 'save scene');
+  sv.onclick = saveScene;
+  const im = $('button', null, pb2, 'load scene');
+  const file = $('input', null, panelEl);
+  file.type = 'file'; file.accept = '.json'; file.style.display = 'none';
+  im.onclick = () => file.click();
+  file.onchange = () => loadScene(file);
+  const rs = $('button', 'danger', pb2, 'reset');
+  rs.onclick = resetAll;
+  $('div', 'hint', panelEl,
+    'one scene = every placed property with its position, rotation, scale, stretch, color, mode and grouping, plus backdrop and performers.');
+
+  // STAGE PROPERTIES
+  $('h2', null, panelEl, 'STAGE PROPERTIES');
+  const searchIn = $('input', null, panelEl);
+  searchIn.type = 'text';
+  searchIn.placeholder = 'search: chair, fountain, platform, train\u2026';
+  searchIn.value = searchQuery;
+  searchIn.oninput = () => { searchQuery = searchIn.value; renderCatalog(); };
+  catGridEl = $('div', null, panelEl);
+  countEl = $('div', 'hint', panelEl, '');
+  renderCatalog();
+
+  // ON STAGE
+  $('h2', null, panelEl, 'ON STAGE');
+  const gb = $('div', 'btnrow', panelEl);
+  const grp = $('button', null, gb, 'group selected');
+  grp.onclick = groupSelection;
+  const ungrp = $('button', null, gb, 'ungroup');
+  ungrp.onclick = ungroupSelection;
+  $('div', 'hint', panelEl,
+    'shift-click pieces on the canvas or in this list to multi-select, then group. grouped pieces move, rotate (R) and delete together.');
+  placedListEl = $('div', null, panelEl);
+  detailEl = $('div', null, panelEl);
+  detailEl.id = 'detail';
+  refreshPlacedList();
+
+  // PERFORMERS
+  $('h2', null, panelEl, 'PERFORMERS');
+  const ab = $('div', 'btnrow', panelEl);
+  const aAdd = $('button', null, ab, '+ performer');
+  aAdd.onclick = () => performers.push({ id: nextPerfId++,
+    x: random(-2, 2), z: CONFIG.stageDepth / 2 });
+  const aRem = $('button', null, ab, '\u2212 performer');
+  aRem.onclick = () => performers.pop();
+  $('div', 'hint', panelEl,
+    'the white figures are 1.75m tall, keep one nearby as a scale reference while you place larger structures.');
+}
+
+function renderStarters() {
+  if (!starterGridEl) return;
+  starterGridEl.innerHTML = '';
+  for (const st of STARTERS.slice(0, startersShown)) {
+    const b = $('button', null, starterGridEl, st.name);
+    b.onclick = () => applyStarter(st);
+  }
+  if (startersShown >= STARTERS.length) {
+    starterMoreBtn.style.display = 'none';
+  } else {
+    starterMoreBtn.style.display = 'block';
+    starterMoreBtn.textContent = 'load more (' +
+      (STARTERS.length - startersShown) + ' more) \u25BE';
+  }
+}
+
+function renderCatalog() {
+  if (!catGridEl) return;
+  catGridEl.innerHTML = '';
+  const q = searchQuery.trim().toLowerCase();
+  const matches = CATALOG.filter(k =>
+    !q || k.name.includes(q) || k.cat.includes(q) ||
+    k.tags.some(t => t.includes(q)));
+  const cats = [...new Set(matches.map(k => k.cat))];
+  for (const cat of cats) {
+    $('h3', null, catGridEl, cat.toUpperCase());
+    const grid = $('div', 'catgrid', catGridEl);
+    for (const k of matches.filter(m => m.cat === cat)) {
+      const b = $('button', null, grid, '+ ' + k.name);
+      b.title = k.name;
+      b.onclick = () => {
+        addPiece(k.name, random(-1, 1), CONFIG.stageDepth / 2, 0, 1);
+        refreshPlacedList();
+      };
+    }
+  }
+  if (countEl) countEl.textContent = matches.length + ' of ' + CATALOG.length +
+    ' properties' + (q ? ' matching \u201C' + q + '\u201D' : '') +
+    '. every piece can be scaled, stretched, rotated, recolored, elevated, grouped, and switched between line and fill.';
+}
+
+function applyStarter(st) {
+  const items = st.items(CONFIG.stageWidth / 2, CONFIG.stageDepth);
+  pieces = [];
+  nextPieceId = 1; nextGroupId = 1;
+  multiSel.clear(); selectedPiece = null;
+  for (const it of items) {
+    addPiece(it.name, it.x, it.z, it.rot || 0, it.scale || 1,
+      { elev: it.elev || 0, sx: it.sx || 1, sz: it.sz || 1 });
+  }
+  setSelection(null);
+  refreshPlacedList();
+}
+
+function refreshPlacedList() {
+  if (!placedListEl) return;
+  placedListEl.innerHTML = '';
+  if (!pieces.length) {
+    $('div', 'hint', placedListEl, 'nothing on stage yet \u2014 search the catalog above and click a property to place it.');
+  }
+  pieces.forEach((P, i) => {
+    let cls = 'itemrow';
+    if (P.id === selectedPiece) cls += ' sel';
+    else if (multiSel.has(P.id)) cls += ' multi';
+    const row = $('div', cls, placedListEl);
+    $('div', 'nm', row, (i + 1) + ' \u00B7 ' + P.name +
+      (P.group !== null ? ' [g' + P.group + ']' : ''));
+    const rc = $('input', null, row);
+    rc.type = 'color'; rc.value = P.color;
+    rc.onclick = (e) => e.stopPropagation();
+    rc.oninput = () => { P.color = rc.value; };
+    $('div', 'typ', row, P.mode.toUpperCase());
+    row.onclick = (e) => { setSelection(P.id, e.shiftKey); refreshPlacedList(); };
+  });
+  refreshDetail();
+}
+
+function refreshDetail() {
+  if (!detailEl) return;
+  const P = pieces.find(x => x.id === selectedPiece);
+  detailEl.innerHTML = '';
+  if (!P) { detailEl.style.display = 'none'; return; }
+  detailEl.style.display = 'block';
+
+  $('div', 'hint', detailEl, P.name +
+    (multiSel.size > 1 ? '  \u00B7  editing primary of ' + multiSel.size + ' selected' : ''));
+
+  const mrow = $('div', 'btnrow', detailEl);
+  const lineB = $('button', 'mode' + (P.mode === 'line' ? ' active' : ''), mrow, 'line');
+  const fillB = $('button', 'mode' + (P.mode === 'fill' ? ' active' : ''), mrow, 'fill');
+  lineB.onclick = () => { for (const q of selectionPieces()) q.mode = 'line'; refreshPlacedList(); };
+  fillB.onclick = () => { for (const q of selectionPieces()) q.mode = 'fill'; refreshPlacedList(); };
+
+  const crow = $('div', 'row', detailEl);
+  $('label', null, crow, 'color');
+  const cin = $('input', null, crow); cin.type = 'color'; cin.value = P.color;
+  cin.oninput = () => { for (const q of selectionPieces()) q.color = cin.value; };
+  cin.onchange = () => refreshPlacedList();
+
+  slider(detailEl, 'scale', 0.3, 3, 0.05,
+    () => P.scale, v => P.scale = v, v => Number(v).toFixed(2) + '\u00D7');
+  slider(detailEl, 'width \u00D7', 0.3, 4, 0.05,
+    () => P.sx, v => P.sx = v, v => Number(v).toFixed(2) + '\u00D7');
+  slider(detailEl, 'depth \u00D7', 0.3, 4, 0.05,
+    () => P.sz, v => P.sz = v, v => Number(v).toFixed(2) + '\u00D7');
+  slider(detailEl, 'rotation', 0, 359, 1,
+    () => P.rot, v => P.rot = v, v => Math.round(v) + '\u00B0');
+  slider(detailEl, 'elevation', 0, 3, 0.05,
+    () => P.elev, v => P.elev = v, v => Number(v).toFixed(2) + 'm');
+  $('div', 'hint', detailEl,
+    'width and depth stretch the piece along its own axes before rotation, so a flat can become exactly as long as your wall needs to be.');
+
+  const brow = $('div', 'btnrow', detailEl);
+  const dup = $('button', null, brow, 'duplicate');
+  dup.onclick = () => {
+    const copies = selectionPieces().map(q => {
+      const C2 = JSON.parse(JSON.stringify(q));
+      C2.id = nextPieceId++; C2.x += 0.8; C2.group = null;
+      return C2;
+    });
+    pieces.push(...copies);
+    setSelection(copies[copies.length - 1].id);
+    refreshPlacedList();
+  };
+  const del = $('button', 'danger', brow, 'delete');
+  del.onclick = () => {
+    pieces = pieces.filter(x => !multiSel.has(x.id));
+    setSelection(null);
+    refreshPlacedList();
+  };
+}
+
+// -------------------- ABOUT POPUP --------------------
+function buildAbout() {
+  const btn = document.getElementById('aboutBtn');
+  const pop = document.getElementById('aboutPop');
+  btn.onclick = () => {
+    if (pop.style.display === 'block') { pop.style.display = 'none'; return; }
+    pop.innerHTML = '';
+    $('h3', null, pop, 'ABOUT / HOW TO USE');
+    const txt = $('div', 'txt', pop);
+    txt.innerHTML = linkifyCredit(CONFIG.aboutText);
+    const br = $('div', 'btnrow', pop);
+    const close = $('button', null, br, 'close');
+    close.onclick = () => { pop.style.display = 'none'; };
+    pop.style.display = 'block';
+  };
+}
+
+// -------------------- EXPORT: PNG PLOT SHEET --------------------
+function captureView(pitch) {
+  const pp = cam.pitch, tt = cam.target;
+  cam.pitch = pitch; cam.target = pitch;
+  camUpdate();
+  cam.pitch = pitch;
+  drawScene();
+  const img = get();
+  cam.pitch = pp; cam.target = tt;
+  return img;
+}
+
+function exportSheet() {
+  const top = captureView(CONFIG.pitchTop);
+  const front = captureView(CONFIG.pitchFront);
+
+  const pad = 24, headH = 54, labelH = 26;
+  const listH = 80 + pieces.length * 18 + 40;
+  const sheetW = width;
+  const sheetH = headH + (height + labelH) * 2 + listH + pad * 2;
+
+  const pg = createGraphics(sheetW, sheetH);
+  pg.background(0);
+  pg.textFont('DM Mono, monospace');
+
+  pg.noStroke(); pg.fill(255);
+  pg.textSize(15); pg.textAlign(pg.LEFT, pg.TOP);
+  pg.text('STAGE PLOT', pad, 18);
+  pg.fill(150); pg.textSize(10);
+  const now = new Date();
+  pg.textAlign(pg.RIGHT, pg.TOP);
+  pg.text(now.toLocaleDateString() + '  \u00B7  stage ' +
+    CONFIG.stageWidth + 'm \u00D7 ' + CONFIG.stageDepth + 'm  \u00B7  ' +
+    CONFIG.footerText, sheetW - pad, 22);
+
+  let y = headH;
+  for (const [label, img] of [['TOP VIEW', top], ['AUDIENCE VIEW', front]]) {
+    pg.fill(200); pg.textSize(11); pg.textAlign(pg.LEFT, pg.TOP);
+    pg.text(label, pad, y);
+    y += labelH;
+    pg.image(img, 0, y);
+    pg.noFill(); pg.stroke(255, 40);
+    pg.rect(0, y, sheetW - 1, height);
+    pg.noStroke();
+    y += height;
+  }
+
+  y += pad;
+  pg.fill(200); pg.textSize(11);
+  pg.text('PROPERTY SCHEDULE', pad, y);
+  y += 24;
+  pg.fill(120); pg.textSize(10);
+  pg.text('#    NAME                       CAT          POS (x,z)      ROT    SCALE   W\u00D7/D\u00D7        ELEV    GRP   MODE', pad, y);
+  y += 8;
+  pg.stroke(255, 50); pg.line(pad, y + 6, sheetW - pad, y + 6);
+  pg.noStroke();
+  y += 16;
+  const padStr = (s, n) => (String(s) + ' '.repeat(n)).slice(0, n);
+  pieces.forEach((P, i) => {
+    const def = catalogByName(P.name);
+    pg.fill(230); pg.textSize(10);
+    pg.text(padStr(i + 1, 5) + padStr(P.name, 27) + padStr(def ? def.cat : '?', 13) +
+      padStr(P.x.toFixed(1) + ', ' + P.z.toFixed(1), 15) +
+      padStr(Math.round(P.rot) + '\u00B0', 7) +
+      padStr(P.scale.toFixed(2) + '\u00D7', 8) +
+      padStr(P.sx.toFixed(2) + '/' + P.sz.toFixed(2), 13) +
+      padStr(P.elev.toFixed(2) + 'm', 8) +
+      padStr(P.group !== null ? 'g' + P.group : '\u2014', 6) +
+      P.mode, pad, y);
+    const c = color(P.color);
+    pg.fill(red(c), green(c), blue(c));
+    pg.rect(pad + 700, y - 1, 9, 9);
+    y += 18;
+  });
+  y += 6;
+  pg.fill(150); pg.textSize(10);
+  const BD = CONFIG.backdrop;
+  pg.text('backdrop: ' + (BD.on ? (BD.mode + ' \u00B7 ' + BD.color) : 'off') +
+    '     performers: ' + performers.length, pad, y);
+
+  save(pg, 'stage-plot-sheet.png');
+  setTimeout(() => pg.remove(), 3000);
+}
+
+// -------------------- SCENE FILE I/O --------------------
+function saveScene() {
+  const data = { config: CONFIG, pieces, performers };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'stage-plot-scene.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+function loadScene(fileInput) {
+  const f = fileInput.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (data.config) {
+        delete data.config.footerText;
+        delete data.config.aboutText;
+        Object.assign(CONFIG, data.config);
+      }
+      if (data.pieces) {
+        pieces = data.pieces.filter(P => catalogByName(P.name)).map(P => ({
+          sx: 1, sz: 1, group: null, ...P
+        }));
+        nextPieceId = Math.max(0, ...pieces.map(p => p.id)) + 1;
+        nextGroupId = Math.max(0, ...pieces.map(p => p.group || 0)) + 1;
+      }
+      if (data.performers) { performers = data.performers;
+        nextPerfId = Math.max(0, ...performers.map(a => a.id)) + 1; }
+      setSelection(null);
+      buildPanel();
+    } catch (e) { console.error('scene load failed', e); }
+  };
+  reader.readAsText(f);
+  fileInput.value = '';
+}
+function resetAll() {
+  Object.assign(CONFIG, JSON.parse(JSON.stringify(DEFAULT_CONFIG)));
+  pieces = [];
+  performers = [ { id:1, x:0, z:5 }, { id:2, x:-2.4, z:4.2 } ];
+  nextPieceId = 1; nextPerfId = 3; nextGroupId = 1;
+  setSelection(null);
+  startersShown = 10;
+  cam.target = CONFIG.pitchTop;
+  buildPanel();
+}
+</script>
+</body>
+</html>
